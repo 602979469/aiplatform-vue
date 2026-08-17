@@ -57,6 +57,8 @@ kind: Ingress
 metadata:
   name: aiplatform-web
   namespace: tsk
+  annotations:
+    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
 spec:
   ingressClassName: nginx
   rules:
