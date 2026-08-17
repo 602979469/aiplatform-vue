@@ -4,8 +4,11 @@
     <div v-if="!searched" class="hero">
       <div class="hero-logo">🐳</div>
       <h1 class="hero-title">Docker镜像加速器</h1>
-      <p class="hero-sub">输入镜像名称搜索，自动匹配当前设备架构</p>
+      <p class="hero-sub">输入镜像名称搜索，可切换目标架构（默认当前设备架构）</p>
       <div class="hero-input-wrap">
+        <el-select v-model="client.arch" class="hero-arch-select" placeholder="架构">
+          <el-option v-for="item in archOptions" :key="item" :label="item" :value="item" />
+        </el-select>
         <el-input
           v-model="searchInput"
           class="hero-input"
@@ -20,7 +23,7 @@
       <div class="client-info hero-client">
         当前设备：<el-tag size="mini" type="info">{{ client.os }}</el-tag>
         <el-tag size="mini" type="info">{{ client.arch }}</el-tag>
-        <span class="client-tip">镜像会优先匹配当前架构，可通过加速器（docker.xuanyuan.run）拉取</span>
+        <span class="client-tip">镜像会优先匹配所选架构，可通过加速器（docker.xuanyuan.run）拉取</span>
       </div>
     </div>
 
@@ -28,6 +31,9 @@
     <div v-else class="app-container mirror-container">
       <div class="search-panel">
         <div class="search-row">
+          <el-select v-model="client.arch" class="search-arch-select" size="medium" placeholder="架构">
+            <el-option v-for="item in archOptions" :key="item" :label="item" :value="item" />
+          </el-select>
           <el-input
             v-model="searchInput"
             class="search-input"
@@ -94,6 +100,7 @@ export default {
         os: '未知',
         arch: 'amd64'
       },
+      archOptions: ['amd64', 'arm64', 'arm', '386', 'ppc64le', 's390x'],
       pollTimers: {}
     }
   },
@@ -128,6 +135,9 @@ export default {
           else if (arch === 'arm') this.client.arch = 'arm64'
           else if (arch) this.client.arch = arch
         }).catch(() => {})
+      }
+      if (this.archOptions.indexOf(this.client.arch) === -1) {
+        this.archOptions.unshift(this.client.arch)
       }
     },
 
@@ -288,9 +298,28 @@ export default {
   .hero-input-wrap {
     width: 660px;
     max-width: 92vw;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .hero-arch-select {
+    width: 130px;
+    flex-shrink: 0;
+
+    .el-input__inner {
+      height: 50px;
+      line-height: 50px;
+      font-size: 15px;
+      border-radius: 25px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    }
   }
 
   .hero-input {
+    flex: 1;
+    min-width: 0;
+
     .el-input__inner {
       height: 50px;
       line-height: 50px;
@@ -329,6 +358,11 @@ export default {
 
   .search-input {
     max-width: 520px;
+  }
+
+  .search-arch-select {
+    width: 120px;
+    flex-shrink: 0;
   }
 
   .client-info {
