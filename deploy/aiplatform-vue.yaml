@@ -15,6 +15,15 @@ spec:
       labels:
         app: aiplatform-vue
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - k8s-master
       containers:
         - name: aiplatform-vue
           # 流水线会替换为 aiplatform-vue:<commit 短哈希>
