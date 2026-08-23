@@ -88,6 +88,20 @@ export const constantRoutes = [
       }
     ]
   },
+  {
+    path: '/codegen',
+    component: Layout,
+    redirect: 'noredirect',
+    meta: { title: '代码生成器', icon: 'code' },
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/ai/codegen/index'),
+        name: 'Codegen',
+        meta: { title: '代码生成器', icon: 'code' }
+      }
+    ]
+  },
 ]
 
 // 防止连续点击多次路由报错
