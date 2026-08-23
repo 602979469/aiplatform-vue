@@ -58,13 +58,17 @@ const permission = {
  */
 function formatRouters(menus) {
   return (menus || []).map(menu => {
+    // 外链菜单（isFrame = '0'）：path 存 http(s) 地址，映射为 InnerLink + meta.link，
+    // 由 IframeToggle 在内容区以 iframe 内嵌；内部路由 path 用 link{menuId} 避免与 URL 冲突
+    const isFrame = menu.isFrame === '0'
     const route = {
-      path: menu.path,
-      component: menu.component || 'Layout',
+      path: isFrame ? 'link' + menu.menuId : menu.path,
+      component: isFrame ? 'InnerLink' : (menu.component || 'Layout'),
       name: 'Menu' + menu.menuId,
       meta: {
         title: menu.menuName,
-        icon: menu.icon || ''
+        icon: menu.icon || '',
+        link: isFrame ? menu.path : undefined
       },
       children: formatRouters(menu.children)
     }
