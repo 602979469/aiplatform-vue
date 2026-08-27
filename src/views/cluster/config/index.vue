@@ -61,7 +61,7 @@
     <pagination v-show="total > 0" :total="total" :page.sync="queryParams.pageNum" :limit.sync="queryParams.pageSize" @pagination="getList" />
 
     <!-- 新增/修改对话框 -->
-    <el-dialog :title="title" :visible.sync="open" width="860px" append-to-body>
+    <el-dialog :title="title" :visible.sync="open" width="1040px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="120px">
         <el-row>
           <el-col :span="12">
@@ -88,7 +88,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="git 地址" prop="gitUrl">
-              <el-input v-model="form.gitUrl" placeholder="https://user:token@github.com/xxx.git" />
+              <el-input v-model="form.gitUrl" placeholder="https://github.com/xxx/yyy.git（仓库访问凭证由系统统一管理，无需填写 token）" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -108,10 +108,33 @@
           </el-col>
         </el-row>
         <el-form-item label="Dockerfile" prop="dockerfile">
-          <el-input v-model="form.dockerfile" type="textarea" :rows="8" placeholder="用户必须提供完整 Dockerfile" class="code-textarea" />
+          <el-input v-model="form.dockerfile" type="textarea" :rows="10" placeholder="用户必须提供完整 Dockerfile" class="code-editor" />
         </el-form-item>
+        <el-divider content-position="left">Deployment 生成辅助（不落库，仅用于生成 YAML 样板）</el-divider>
+        <div class="gen-bar">
+          <div class="gen-item">
+            <span class="gen-label">架构选择</span>
+            <el-select v-model="form.genArch" placeholder="请选择" style="width: 120px">
+              <el-option label="仅 AMD" value="amd" />
+              <el-option label="仅 ARM" value="arm" />
+              <el-option label="两者" value="both" />
+            </el-select>
+          </div>
+          <div class="gen-item">
+            <span class="gen-label">副本数</span>
+            <el-input-number v-model="form.genReplicas" :min="1" :max="100" :controls="false" style="width: 90px" />
+          </div>
+          <div class="gen-item">
+            <span class="gen-label">开启 Ingress</span>
+            <el-switch v-model="form.genIngress" />
+          </div>
+          <div class="gen-item gen-btn">
+            <el-button type="primary" icon="el-icon-magic-stick" @click="handleGenerateYaml">生成 Deployment</el-button>
+          </div>
+        </div>
+        <div class="gen-tip">点击「生成 Deployment」后，将按上面选项生成基础 YAML 填充到下方编辑框</div>
         <el-form-item label="Deployment YAML" prop="deployYaml">
-          <el-input v-model="form.deployYaml" type="textarea" :rows="14" placeholder="系统预填 + 用户编辑，提交时仅校验 YAML 格式" class="code-textarea" />
+          <el-input v-model="form.deployYaml" type="textarea" :rows="18" placeholder="点击「生成 Deployment」自动预填基础 YAML，可继续编辑；提交时仅校验 YAML 格式" class="code-editor" />
         </el-form-item>
       </el-form>
       <div slot="footer" class="dialog-footer">
@@ -121,7 +144,7 @@
     </el-dialog>
 
     <!-- 详情对话框 -->
-    <el-dialog title="配置详情" :visible.sync="viewOpen" width="860px" append-to-body>
+    <el-dialog title="配置详情" :visible.sync="viewOpen" width="1040px" append-to-body>
       <el-descriptions :column="2" border>
         <el-descriptions-item label="资源名称">{{ viewData.resourceName }}</el-descriptions-item>
         <el-descriptions-item label="pod名称">{{ viewData.podName }}</el-descriptions-item>
@@ -169,7 +192,11 @@ export default {
         podName: undefined,
         namespace: undefined
       },
-      form: {},
+      form: {
+        genArch: 'amd',
+        genReplicas: 1,
+        genIngress: false
+      },
       rules: {
         resourceName: [{ required: true, message: '资源名称不能为空', trigger: 'blur' }],
         podName: [{ required: true, message: 'pod名称不能为空', trigger: 'blur' }],
@@ -190,8 +217,8 @@ export default {
     getList() {
       this.loading = true
       pagePodConfig(this.queryParams).then(res => {
-        this.configList = res.rows || []
-        this.total = res.total || 0
+        this.configList = (res.data && res.data.dataList) || []
+        this.total = (res.data && res.data.total) || 0
         this.loading = false
       }).catch(() => {
         this.loading = false
@@ -217,7 +244,10 @@ export default {
     },
     reset() {
       this.form = {
-        autoRefresh: 0
+        autoRefresh: 0,
+        genArch: 'amd',
+        genReplicas: 1,
+        genIngress: false
       }
     },
     handleAdd() {
@@ -238,12 +268,112 @@ export default {
       this.viewData = row
       this.viewOpen = true
     },
+    // 根据辅助控件生成 Deployment YAML 基础样板（约完成 80%，用户可继续编辑）
+    handleGenerateYaml() {
+      if (!this.form.podName) {
+        this.$message.warning('请先填写 pod 名称再生成 YAML')
+        return
+      }
+      if (!this.form.namespace) {
+        this.$message.warning('请先选择命名空间再生成 YAML')
+        return
+      }
+      const podName = this.form.podName
+      const namespace = this.form.namespace
+      const replicas = this.form.genReplicas || 1
+      const archValues = this.form.genArch === 'amd' ? ['amd64']
+        : this.form.genArch === 'arm' ? ['arm64']
+          : ['amd64', 'arm64']
+
+      let yaml = `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${podName}
+  namespace: ${namespace}
+  labels:
+    app: ${podName}
+    aiplatform-managed: "true"
+spec:
+  replicas: ${replicas}
+  selector:
+    matchLabels:
+      app: ${podName}
+  template:
+    metadata:
+      labels:
+        app: ${podName}
+        aiplatform-managed: "true"
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - ${archValues.join('\n                - ')}
+      containers:
+      - name: ${podName}
+        image: ${podName}:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${podName}
+  namespace: ${namespace}
+  labels:
+    app: ${podName}
+    aiplatform-managed: "true"
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: ${podName}
+`
+      if (this.form.genIngress) {
+        yaml += `---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${podName}
+  namespace: ${namespace}
+  labels:
+    app: ${podName}
+    aiplatform-managed: "true"
+spec:
+  rules:
+  - host: ${podName}.jakt.online
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ${podName}
+            port:
+              number: 8080
+`
+      }
+      this.$set(this.form, 'deployYaml', yaml)
+      this.$nextTick(() => {
+        this.$message.success('已生成 Deployment YAML 基础样板，可继续编辑')
+      })
+    },
     submitForm() {
       this.$refs.form.validate(valid => {
         if (!valid) return
-        const req = this.isEdit ? updatePodConfig(this.form.id, this.form) : addPodConfig(this.form)
+        // 剔除前端辅助字段（genArch/genReplicas/genIngress 只用于生成 YAML，不落库）
+        const { genArch, genReplicas, genIngress, ...payload } = this.form
+        const req = this.isEdit ? updatePodConfig(payload.id, payload) : addPodConfig(payload)
         req.then(() => {
-          this.msgSuccess('保存成功')
+          this.$modal.msgSuccess('保存成功')
           this.open = false
           this.getList()
         })
@@ -251,48 +381,32 @@ export default {
     },
     handleDelete(row) {
       const ids = row.id || this.ids
-      this.$confirm('删除将同时删除 K8s 资源（不可恢复），确认删除？', '警告', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
+      this.$modal.confirm('删除将同时删除 K8s 资源（不可恢复），确认删除？').then(() => {
         return delPodConfig(ids)
       }).then(() => {
         this.getList()
-        this.msgSuccess('删除成功')
+        this.$modal.msgSuccess('删除成功')
       })
     },
     handleDeploy(row) {
-      this.$confirm('触发部署将拉取代码并构建双架构镜像，确认部署？', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
+      this.$modal.confirm('触发部署将拉取代码并构建双架构镜像，确认部署？').then(() => {
         return deployPodConfig(row.id)
       }).then(() => {
-        this.msgSuccess('部署已受理，请到实时管理页查看进度')
+        this.$modal.msgSuccess('部署已受理，请到实时管理页查看进度')
       })
     },
     handleStop(row) {
-      this.$confirm('确认停用该业务 pod？（缩容到 0）', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
+      this.$modal.confirm('确认停用该业务 pod？（缩容到 0）').then(() => {
         return stopPodConfig(row.id)
       }).then(() => {
-        this.msgSuccess('停用成功')
+        this.$modal.msgSuccess('停用成功')
       })
     },
     handleStart(row) {
-      this.$confirm('确认启用该业务 pod？（扩容到配置副本数）', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
+      this.$modal.confirm('确认启用该业务 pod？（扩容到配置副本数）').then(() => {
         return startPodConfig(row.id)
       }).then(() => {
-        this.msgSuccess('启用成功')
+        this.$modal.msgSuccess('启用成功')
       })
     },
     cancel() {
@@ -303,9 +417,24 @@ export default {
 </script>
 
 <style scoped>
-.code-textarea textarea {
-  font-family: Menlo, Consolas, monospace;
-  font-size: 12px;
+/* VSCode 浅色风格代码输入框（Light+） */
+.code-editor /deep/ .el-textarea__inner {
+  font-family: 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  background-color: #ffffff;
+  color: #000000;
+  border-color: #d4d4d4;
+  border-radius: 6px;
+  padding: 12px 14px;
+  caret-color: #569cd6;
+}
+.code-editor /deep/ .el-textarea__inner:focus {
+  border-color: #007acc;
+  box-shadow: 0 0 0 1px #007acc inset;
+}
+.code-editor /deep/ .el-textarea__inner::placeholder {
+  color: #a0a0a0;
 }
 .view-pre {
   margin: 0;
@@ -318,5 +447,35 @@ export default {
   border-radius: 4px;
   max-height: 300px;
   overflow: auto;
+}
+/* Deployment 生成辅助条 */
+.gen-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 12px 16px;
+  background: #f5f7fa;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+.gen-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gen-label {
+  font-size: 13px;
+  color: #606266;
+  white-space: nowrap;
+}
+.gen-btn {
+  margin-left: auto;
+}
+.gen-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 8px;
 }
 </style>

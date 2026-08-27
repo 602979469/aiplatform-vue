@@ -139,38 +139,26 @@ export default {
       })
     },
     handleStop(row) {
-      this.$confirm('确认停用该业务 pod？（缩容到 0）', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
+      this.$modal.confirm('确认停用该业务 pod？（缩容到 0）').then(() => {
         return stopPodConfig(row.podConfigId || row.id)
       }).then(() => {
-        this.msgSuccess('停用成功')
+        this.$modal.msgSuccess('停用成功')
         this.getList()
       })
     },
     handleStart(row) {
-      this.$confirm('确认启用该业务 pod？（扩容到配置副本数）', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
+      this.$modal.confirm('确认启用该业务 pod？（扩容到配置副本数）').then(() => {
         return startPodConfig(row.podConfigId || row.id)
       }).then(() => {
-        this.msgSuccess('启用成功')
+        this.$modal.msgSuccess('启用成功')
         this.getList()
       })
     },
     handleDelete(row) {
-      this.$confirm('删除将同时删除 K8s 资源（不可恢复），确认删除？', '警告', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(() => {
+      this.$modal.confirm('删除将同时删除 K8s 资源（不可恢复），确认删除？').then(() => {
         return delPodConfig(row.podConfigId || row.id)
       }).then(() => {
-        this.msgSuccess('删除成功')
+        this.$modal.msgSuccess('删除成功')
         this.getList()
       })
     }
