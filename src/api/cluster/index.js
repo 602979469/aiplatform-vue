@@ -50,10 +50,11 @@ export function updatePodConfig(id, data) {
   })
 }
 
-// 删除业务pod配置（含 K8s 资源）
-export function delPodConfig(id) {
+// 删除业务pod配置（支持批量，逗号分隔）
+export function delPodConfig(ids) {
+  const idStr = Array.isArray(ids) ? ids.join(',') : ids
   return request({
-    url: '/api/cluster/pod-config/' + id,
+    url: '/api/cluster/pod-config/' + idStr,
     method: 'delete',
     timeout: 60000
   })
@@ -86,6 +87,24 @@ export function startPodConfig(id) {
   })
 }
 
+// 弃用配置（仅 PUBLISHED 可弃用）
+export function retirePodConfig(id) {
+  return request({
+    url: '/api/cluster/pod-config/' + id + '/retire',
+    method: 'post',
+    timeout: 30000
+  })
+}
+
+// 复制配置（podName 加 -copy 后缀，状态草稿）
+export function copyPodConfig(id) {
+  return request({
+    url: '/api/cluster/pod-config/' + id + '/copy',
+    method: 'post',
+    timeout: 30000
+  })
+}
+
 // ==================== 实时管理 ====================
 // 实时管理列表
 export function listRuntimePods() {
@@ -96,20 +115,29 @@ export function listRuntimePods() {
   })
 }
 
-// 运行 Pod 日志
-export function getPodLogs(podName) {
+// 运行 Pod 日志（按配置 ID 定位）
+export function getPodLogs(configId) {
   return request({
-    url: '/api/cluster/runtime/' + podName + '/logs',
+    url: '/api/cluster/runtime/' + configId + '/logs',
     method: 'get',
     timeout: 60000
   })
 }
 
-// 运行事件
-export function getPodEvents(podName) {
+// 运行事件（按配置 ID 定位）
+export function getPodEvents(configId) {
   return request({
-    url: '/api/cluster/runtime/' + podName + '/events',
+    url: '/api/cluster/runtime/' + configId + '/events',
     method: 'get',
     timeout: 30000
+  })
+}
+
+// 删除实例（删 K8s 资源，不删配置行）
+export function deleteInstance(configId) {
+  return request({
+    url: '/api/cluster/instance/' + configId + '/delete',
+    method: 'post',
+    timeout: 60000
   })
 }

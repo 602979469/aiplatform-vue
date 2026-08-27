@@ -24,7 +24,10 @@
         <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd">新增配置</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button type="success" plain icon="el-icon-edit" size="mini" :disabled="single" @click="handleUpdate">修改</el-button>
+        <el-button type="success" plain icon="el-icon-edit" size="mini" :disabled="editDisabled" @click="handleUpdateTop()">修改</el-button>
+      </el-col>
+      <el-col :span="1.5">
+        <el-button type="primary" plain icon="el-icon-copy-document" size="mini" :disabled="copyDisabled" @click="handleCopyTop()">复制</el-button>
       </el-col>
       <el-col :span="1.5">
         <el-button type="danger" plain icon="el-icon-delete" size="mini" :disabled="multiple" @click="handleDelete">删除</el-button>
@@ -37,7 +40,11 @@
       <el-table-column label="ID" prop="id" width="70" />
       <el-table-column label="资源名称" prop="resourceName" min-width="120" />
       <el-table-column label="pod名称" prop="podName" min-width="120" />
-      <el-table-column label="版本" prop="versionNo" width="90" />
+      <el-table-column label="状态" prop="status" width="100" align="center">
+        <template slot-scope="scope">
+          <el-tag size="mini" :type="statusType(scope.row.status)">{{ statusText(scope.row.status) }}</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="命名空间" prop="namespace" width="90" />
       <el-table-column label="分支" prop="gitBranch" min-width="100" />
       <el-table-column label="自动刷新" width="90" align="center">
@@ -48,11 +55,11 @@
         </template>
       </el-table-column>
       <el-table-column label="创建时间" prop="createTime" width="160" />
-      <el-table-column label="操作" width="260" align="center" fixed="right">
+      <el-table-column label="操作" width="220" align="center" fixed="right">
         <template slot-scope="scope">
-          <el-button size="mini" type="primary" icon="el-icon-video-play" @click="handleDeploy(scope.row)">部署</el-button>
-          <el-button size="mini" type="warning" icon="el-icon-video-pause" @click="handleStop(scope.row)">停用</el-button>
-          <el-button size="mini" type="success" icon="el-icon-video-play" @click="handleStart(scope.row)">启用</el-button>
+          <el-button v-if="scope.row.status !== 'DRAFT'" size="mini" type="warning" icon="el-icon-document" @click="handleBuildLog(scope.row)">日志</el-button>
+          <el-button v-if="canDeploy(scope.row)" size="mini" type="primary" icon="el-icon-video-play" @click="handleDeploy(scope.row)">部署</el-button>
+          <el-button v-if="canRetire(scope.row)" size="mini" type="warning" icon="el-icon-remove-outline" @click="handleRetire(scope.row)">弃用</el-button>
           <el-button size="mini" type="info" icon="el-icon-view" @click="handleView(scope.row)">详情</el-button>
         </template>
       </el-table-column>
@@ -72,11 +79,6 @@
           <el-col :span="12">
             <el-form-item label="pod名称" prop="podName">
               <el-input v-model="form.podName" placeholder="小写，如：user-center" :disabled="isEdit" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="版本号" prop="versionNo">
-              <el-input v-model="form.versionNo" placeholder="如：v1" :disabled="isEdit" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -148,7 +150,6 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item label="资源名称">{{ viewData.resourceName }}</el-descriptions-item>
         <el-descriptions-item label="pod名称">{{ viewData.podName }}</el-descriptions-item>
-        <el-descriptions-item label="版本号">{{ viewData.versionNo }}</el-descriptions-item>
         <el-descriptions-item label="命名空间">{{ viewData.namespace }}</el-descriptions-item>
         <el-descriptions-item label="git 分支">{{ viewData.gitBranch }}</el-descriptions-item>
         <el-descriptions-item label="自动刷新">{{ viewData.autoRefresh === 1 ? '开' : '关' }}</el-descriptions-item>
@@ -162,11 +163,20 @@
         </el-descriptions-item>
       </el-descriptions>
     </el-dialog>
+
+    <!-- 构建日志对话框 -->
+    <el-dialog :title="'构建日志 - ' + buildLogPodName" :visible.sync="buildLogOpen" width="900px" append-to-body>
+      <pre class="build-log">{{ buildLogContent || '暂无日志' }}</pre>
+      <div slot="footer">
+        <el-button type="primary" icon="el-icon-refresh" @click="loadBuildLog">刷新</el-button>
+        <el-button @click="buildLogOpen = false">关闭</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script>
-import { pagePodConfig, addPodConfig, updatePodConfig, delPodConfig, deployPodConfig, stopPodConfig, startPodConfig, listNamespaces } from '@/api/cluster'
+import { pagePodConfig, addPodConfig, updatePodConfig, delPodConfig, deployPodConfig, retirePodConfig, copyPodConfig, getBuildLog, listNamespaces } from '@/api/cluster'
 
 export default {
   name: 'ClusterConfig',
@@ -178,11 +188,17 @@ export default {
       namespaceList: [],
       total: 0,
       ids: [],
+      selectedRow: null,
       single: true,
       multiple: true,
+      editDisabled: true,
+      copyDisabled: true,
       title: '',
       open: false,
       viewOpen: false,
+      buildLogOpen: false,
+      buildLogContent: '',
+      buildLogPodName: '',
       isEdit: false,
       viewData: {},
       queryParams: {
@@ -200,7 +216,6 @@ export default {
       rules: {
         resourceName: [{ required: true, message: '资源名称不能为空', trigger: 'blur' }],
         podName: [{ required: true, message: 'pod名称不能为空', trigger: 'blur' }],
-        versionNo: [{ required: true, message: '版本号不能为空', trigger: 'blur' }],
         namespace: [{ required: true, message: '命名空间不能为空', trigger: 'change' }],
         gitUrl: [{ required: true, message: 'git 地址不能为空', trigger: 'blur' }],
         gitBranch: [{ required: true, message: 'git 分支不能为空', trigger: 'blur' }],
@@ -219,6 +234,10 @@ export default {
       pagePodConfig(this.queryParams).then(res => {
         this.configList = (res.data && res.data.dataList) || []
         this.total = (res.data && res.data.total) || 0
+        // 刷新后勾选失效，重置选中状态
+        this.selectedRow = null
+        this.editDisabled = true
+        this.copyDisabled = true
         this.loading = false
       }).catch(() => {
         this.loading = false
@@ -241,6 +260,11 @@ export default {
       this.ids = selection.map(item => item.id)
       this.single = selection.length !== 1
       this.multiple = !selection.length
+      // 仅 DRAFT/BUILD_FAILED 可修改/复制（BUILDING/PUBLISHED/RETIRED 不可）
+      const row = this.findRowById(this.ids[0])
+      const s = row ? row.status : null
+      this.editDisabled = !(s === 'DRAFT' || s === 'BUILD_FAILED')
+      this.copyDisabled = !(s === 'DRAFT' || s === 'BUILD_FAILED')
     },
     reset() {
       this.form = {
@@ -263,6 +287,26 @@ export default {
       Object.assign(this.form, row)
       this.form.autoRefresh = row.autoRefresh === 1 ? 1 : 0
       this.open = true
+    },
+    // 顶部修改按钮：基于勾选的 id 从列表取行
+    handleUpdateTop() {
+      const row = this.findRowById(this.ids[0])
+      if (row) {
+        this.handleUpdate(row)
+      }
+    },
+    // 顶部复制按钮：基于勾选的 id 从列表取行
+    handleCopyTop() {
+      const row = this.findRowById(this.ids[0])
+      if (row) {
+        this.handleCopy(row)
+      } else {
+        this.$modal.msgError('请先勾选一条配置')
+      }
+    },
+    // 按 id 从当前列表取行
+    findRowById(id) {
+      return this.configList.find(item => item.id === id) || null
     },
     handleView(row) {
       this.viewData = row
@@ -376,13 +420,16 @@ spec:
           this.$modal.msgSuccess('保存成功')
           this.open = false
           this.getList()
+        }).catch(err => {
+          this.$modal.msgError((err && err.message) || '保存失败')
         })
       })
     },
     handleDelete(row) {
       const ids = row.id || this.ids
-      this.$modal.confirm('删除将同时删除 K8s 资源（不可恢复），确认删除？').then(() => {
-        return delPodConfig(ids)
+      const idList = Array.isArray(ids) ? ids : [ids]
+      this.$modal.confirm('确认删除选中的 ' + idList.length + ' 条配置？删除不可恢复。').then(() => {
+        return delPodConfig(idList)
       }).then(() => {
         this.getList()
         this.$modal.msgSuccess('删除成功')
@@ -393,21 +440,71 @@ spec:
         return deployPodConfig(row.id)
       }).then(() => {
         this.$modal.msgSuccess('部署已受理，请到实时管理页查看进度')
+        this.getList()
       })
     },
-    handleStop(row) {
-      this.$modal.confirm('确认停用该业务 pod？（缩容到 0）').then(() => {
-        return stopPodConfig(row.id)
-      }).then(() => {
-        this.$modal.msgSuccess('停用成功')
+    handleBuildLog(row) {
+      this.buildLogPodName = row.podName
+      this.buildLogOpen = true
+      this.buildLogContent = ''
+      this.loadBuildLog(row)
+    },
+    loadBuildLog(row) {
+      const configId = row ? row.id : (this.selectedRow ? this.selectedRow.id : null)
+      if (!configId) return
+      getBuildLog(configId).then(res => {
+        this.buildLogContent = res.data || ''
+      }).catch(() => {
+        this.buildLogContent = '日志读取失败'
       })
     },
-    handleStart(row) {
-      this.$modal.confirm('确认启用该业务 pod？（扩容到配置副本数）').then(() => {
-        return startPodConfig(row.id)
+    handleCopy(row) {
+      const target = row || this.selectedRow
+      if (!target) {
+        this.$modal.msgError('请先勾选一条配置')
+        return
+      }
+      this.$modal.confirm('复制将生成一份相同配置（podName 加 -copy 后缀，状态草稿），确认复制？').then(() => {
+        return copyPodConfig(target.id)
       }).then(() => {
-        this.$modal.msgSuccess('启用成功')
+        this.$modal.msgSuccess('复制成功')
+        this.getList()
       })
+    },
+    handleRetire(row) {
+      this.$modal.confirm('弃用后配置不可编辑/删除/部署，只有查看，确认弃用？').then(() => {
+        return retirePodConfig(row.id)
+      }).then(() => {
+        this.$modal.msgSuccess('弃用成功')
+        this.getList()
+      })
+    },
+    // 状态展示与权限
+    statusType(status) {
+      const map = {
+        DRAFT: 'info',
+        BUILDING: 'warning',
+        BUILD_FAILED: 'danger',
+        PUBLISHED: 'success',
+        RETIRED: 'info'
+      }
+      return map[status] || 'info'
+    },
+    statusText(status) {
+      const map = {
+        DRAFT: '草稿',
+        BUILDING: '构建中',
+        BUILD_FAILED: '构建失败',
+        PUBLISHED: '发布',
+        RETIRED: '弃用'
+      }
+      return map[status] || status
+    },
+    canDeploy(row) {
+      return row.status !== 'BUILDING' && row.status !== 'RETIRED'
+    },
+    canRetire(row) {
+      return row.status === 'PUBLISHED'
     },
     cancel() {
       this.open = false
@@ -446,6 +543,19 @@ spec:
   padding: 8px;
   border-radius: 4px;
   max-height: 300px;
+  overflow: auto;
+}
+.build-log {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 12px;
+  border-radius: 4px;
+  max-height: 500px;
   overflow: auto;
 }
 /* Deployment 生成辅助条 */

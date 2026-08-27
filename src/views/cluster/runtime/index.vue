@@ -8,7 +8,6 @@
 
     <el-table v-loading="loading" :data="runtimeList" stripe>
       <el-table-column label="pod名称" prop="podName" min-width="130" />
-      <el-table-column label="版本" prop="versionNo" width="90" />
       <el-table-column label="命名空间" prop="namespace" width="100" />
       <el-table-column label="状态" prop="status" width="100" align="center">
         <template slot-scope="scope">
@@ -70,7 +69,7 @@
 </template>
 
 <script>
-import { listRuntimePods, getPodLogs, getPodEvents, stopPodConfig, startPodConfig, delPodConfig, listNamespaces } from '@/api/cluster'
+import { listRuntimePods, getPodLogs, getPodEvents, stopPodConfig, startPodConfig, deleteInstance, listNamespaces } from '@/api/cluster'
 
 export default {
   name: 'ClusterRuntime',
@@ -111,12 +110,13 @@ export default {
     },
     handleLogs(row) {
       this.currentPodName = row.podName
+      this.currentConfigId = row.podConfigId
       this.logOpen = true
       this.logContent = ''
       this.loadLogs()
     },
     loadLogs() {
-      getPodLogs(this.currentPodName).then(res => {
+      getPodLogs(this.currentConfigId).then(res => {
         this.logContent = res.data || ''
       }).catch(() => {
         this.logContent = '日志查询失败'
@@ -124,13 +124,14 @@ export default {
     },
     handleEvents(row) {
       this.currentPodName = row.podName
+      this.currentConfigId = row.podConfigId
       this.eventOpen = true
       this.eventList = []
       this.loadEvents()
     },
     loadEvents() {
       this.eventLoading = true
-      getPodEvents(this.currentPodName).then(res => {
+      getPodEvents(this.currentConfigId).then(res => {
         this.eventList = res.data || []
         this.eventLoading = false
       }).catch(() => {
@@ -155,8 +156,8 @@ export default {
       })
     },
     handleDelete(row) {
-      this.$modal.confirm('删除将同时删除 K8s 资源（不可恢复），确认删除？').then(() => {
-        return delPodConfig(row.podConfigId || row.id)
+      this.$modal.confirm('删除实例将删除 K8s 资源（Deployment/Service/Ingress，不可恢复），配置保留，确认删除？').then(() => {
+        return deleteInstance(row.podConfigId)
       }).then(() => {
         this.$modal.msgSuccess('删除成功')
         this.getList()
