@@ -90,7 +90,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="git 地址" prop="gitUrl">
-              <el-input v-model="form.gitUrl" placeholder="https://github.com/xxx/yyy.git（仓库访问凭证由系统统一管理，无需填写 token）" />
+              <el-input v-model="form.gitUrl" placeholder="https://github.com/xxx/yyy.git（公开仓库无需 token；私有仓库请在地址中携带，如 https://用户名:token@github.com/xxx/yyy.git）" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -176,7 +176,7 @@
 </template>
 
 <script>
-import { pagePodConfig, addPodConfig, updatePodConfig, delPodConfig, deployPodConfig, retirePodConfig, copyPodConfig, getBuildLog, listNamespaces } from '@/api/cluster'
+import { pagePodConfig, addPodConfig, updatePodConfig, delPodConfig, deployPodConfig, retirePodConfig, getBuildLog, listNamespaces } from '@/api/cluster'
 
 export default {
   name: 'ClusterConfig',
@@ -199,6 +199,7 @@ export default {
       buildLogOpen: false,
       buildLogContent: '',
       buildLogPodName: '',
+      buildLogConfigId: null,
       isEdit: false,
       viewData: {},
       queryParams: {
@@ -260,15 +261,24 @@ export default {
       this.ids = selection.map(item => item.id)
       this.single = selection.length !== 1
       this.multiple = !selection.length
-      // 仅 DRAFT/BUILD_FAILED 可修改/复制（BUILDING/PUBLISHED/RETIRED 不可）
+      // 仅 DRAFT/BUILD_FAILED 可修改；任意状态均可复制（复制 = 回填新增表单）
       const row = this.findRowById(this.ids[0])
       const s = row ? row.status : null
       this.editDisabled = !(s === 'DRAFT' || s === 'BUILD_FAILED')
-      this.copyDisabled = !(s === 'DRAFT' || s === 'BUILD_FAILED')
+      this.copyDisabled = selection.length !== 1
     },
     reset() {
       this.form = {
+        id: undefined,
+        resourceName: '',
+        podName: '',
+        namespace: '',
+        gitUrl: '',
+        gitBranch: '',
+        dockerfile: '',
+        deployYaml: '',
         autoRefresh: 0,
+        remark: '',
         genArch: 'amd',
         genReplicas: 1,
         genIngress: false
@@ -445,12 +455,13 @@ spec:
     },
     handleBuildLog(row) {
       this.buildLogPodName = row.podName
+      this.buildLogConfigId = row.id
       this.buildLogOpen = true
       this.buildLogContent = ''
       this.loadBuildLog(row)
     },
     loadBuildLog(row) {
-      const configId = row ? row.id : (this.selectedRow ? this.selectedRow.id : null)
+      const configId = row ? row.id : this.buildLogConfigId
       if (!configId) return
       getBuildLog(configId).then(res => {
         this.buildLogContent = res.data || ''
@@ -464,12 +475,22 @@ spec:
         this.$modal.msgError('请先勾选一条配置')
         return
       }
-      this.$modal.confirm('复制将生成一份相同配置（podName 加 -copy 后缀，状态草稿），确认复制？').then(() => {
-        return copyPodConfig(target.id)
-      }).then(() => {
-        this.$modal.msgSuccess('复制成功')
-        this.getList()
+      // 复制 = 打开新增表单并回填选中配置，由用户修改后保存（不调复制接口）
+      this.reset()
+      this.isEdit = false
+      this.title = '复制配置（可修改后保存为新草稿）'
+      Object.assign(this.form, {
+        resourceName: target.resourceName + '（副本）',
+        podName: target.podName + '-copy',
+        namespace: target.namespace,
+        gitUrl: target.gitUrl,
+        gitBranch: target.gitBranch,
+        dockerfile: target.dockerfile,
+        deployYaml: target.deployYaml,
+        autoRefresh: target.autoRefresh === 1 ? 1 : 0,
+        remark: target.remark || ''
       })
+      this.open = true
     },
     handleRetire(row) {
       this.$modal.confirm('弃用后配置不可编辑/删除/部署，只有查看，确认弃用？').then(() => {

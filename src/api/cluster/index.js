@@ -105,6 +105,15 @@ export function copyPodConfig(id) {
   })
 }
 
+// 读取构建日志（构建中/构建失败/发布状态查看）
+export function getBuildLog(configId) {
+  return request({
+    url: '/api/cluster/pod-config/' + configId + '/build-log',
+    method: 'get',
+    timeout: 30000
+  })
+}
+
 // ==================== 实时管理 ====================
 // 实时管理列表
 export function listRuntimePods() {
