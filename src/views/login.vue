@@ -59,8 +59,8 @@ export default {
       title: process.env.VUE_APP_TITLE,
       footerContent: defaultSettings.footerContent,
       loginForm: {
-        username: "admin",
-        password: "admin123",
+        username: "test",
+        password: "test123456",
         rememberMe: false
       },
       loginRules: {
