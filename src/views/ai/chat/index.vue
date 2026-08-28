@@ -8,7 +8,6 @@
           <span>AI 对话</span>
         </div>
         <el-button
-          v-hasPermi="['ai:chat:add']"
           type="primary"
           size="small"
           icon="el-icon-plus"
@@ -28,13 +27,11 @@
             <span class="session-name" :title="session.sessionName">{{ session.sessionName }}</span>
             <span class="session-actions">
               <i
-                v-hasPermi="['ai:chat:add']"
                 class="el-icon-edit session-action"
                 title="设置标题"
                 @click.stop="handleRenameSession(session)"
               />
               <i
-                v-hasPermi="['ai:chat:remove']"
                 class="el-icon-delete session-action danger"
                 title="删除会话"
                 @click.stop="handleDeleteSession(session)"
@@ -207,7 +204,7 @@ export default {
 
     /** 新建会话：当前会话还没有任何消息时不重复创建，避免产生多个空白会话 */
     handleNewSession() {
-      if (!this.$auth.hasPermi('ai:chat:add') || this.sending) {
+      if (this.sending) {
         return
       }
       if (this.currentSessionId && this.messages.length === 0) {
