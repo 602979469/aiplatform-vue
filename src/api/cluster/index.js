@@ -87,15 +87,6 @@ export function startPodConfig(id) {
   })
 }
 
-// 弃用配置（仅 PUBLISHED 可弃用）
-export function retirePodConfig(id) {
-  return request({
-    url: '/api/cluster/pod-config/' + id + '/retire',
-    method: 'post',
-    timeout: 30000
-  })
-}
-
 // 复制配置（podName 加 -copy 后缀，状态草稿）
 export function copyPodConfig(id) {
   return request({

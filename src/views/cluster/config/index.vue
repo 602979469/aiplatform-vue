@@ -59,7 +59,6 @@
         <template slot-scope="scope">
           <el-button v-if="scope.row.status !== 'DRAFT'" size="mini" type="warning" icon="el-icon-document" @click="handleBuildLog(scope.row)">日志</el-button>
           <el-button v-if="canDeploy(scope.row)" size="mini" type="primary" icon="el-icon-video-play" @click="handleDeploy(scope.row)">部署</el-button>
-          <el-button v-if="canRetire(scope.row)" size="mini" type="warning" icon="el-icon-remove-outline" @click="handleRetire(scope.row)">弃用</el-button>
           <el-button size="mini" type="info" icon="el-icon-view" @click="handleView(scope.row)">详情</el-button>
         </template>
       </el-table-column>
@@ -78,7 +77,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="pod名称" prop="podName">
-              <el-input v-model="form.podName" placeholder="小写，如：user-center" :disabled="isEdit" />
+              <el-input v-model="form.podName" placeholder="小写，如：user-center" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -176,7 +175,7 @@
 </template>
 
 <script>
-import { pagePodConfig, addPodConfig, updatePodConfig, delPodConfig, deployPodConfig, retirePodConfig, getBuildLog, listNamespaces } from '@/api/cluster'
+import { pagePodConfig, addPodConfig, updatePodConfig, delPodConfig, deployPodConfig, getBuildLog, listNamespaces } from '@/api/cluster'
 
 export default {
   name: 'ClusterConfig',
@@ -261,10 +260,10 @@ export default {
       this.ids = selection.map(item => item.id)
       this.single = selection.length !== 1
       this.multiple = !selection.length
-      // 仅 DRAFT/BUILD_FAILED 可修改；任意状态均可复制（复制 = 回填新增表单）
+      // 构建中不允许修改；任意状态均可复制（复制 = 回填新增表单）
       const row = this.findRowById(this.ids[0])
       const s = row ? row.status : null
-      this.editDisabled = !(s === 'DRAFT' || s === 'BUILD_FAILED')
+      this.editDisabled = s === 'BUILDING'
       this.copyDisabled = selection.length !== 1
     },
     reset() {
@@ -401,7 +400,11 @@ metadata:
   labels:
     app: ${podName}
     aiplatform-managed: "true"
+  annotations:
+    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
+  ingressClassName: nginx
   rules:
   - host: ${podName}.jakt.online
     http:
@@ -462,9 +465,10 @@ spec:
     },
     loadBuildLog(row) {
       const configId = row ? row.id : this.buildLogConfigId
-      if (!configId) return
+      if (configId == null) return
+      this.buildLogContent = '加载中...'
       getBuildLog(configId).then(res => {
-        this.buildLogContent = res.data || ''
+        this.buildLogContent = (res && res.data) || ''
       }).catch(() => {
         this.buildLogContent = '日志读取失败'
       })
@@ -492,22 +496,13 @@ spec:
       })
       this.open = true
     },
-    handleRetire(row) {
-      this.$modal.confirm('弃用后配置不可编辑/删除/部署，只有查看，确认弃用？').then(() => {
-        return retirePodConfig(row.id)
-      }).then(() => {
-        this.$modal.msgSuccess('弃用成功')
-        this.getList()
-      })
-    },
     // 状态展示与权限
     statusType(status) {
       const map = {
         DRAFT: 'info',
         BUILDING: 'warning',
         BUILD_FAILED: 'danger',
-        PUBLISHED: 'success',
-        RETIRED: 'info'
+        PUBLISHED: 'success'
       }
       return map[status] || 'info'
     },
@@ -516,16 +511,12 @@ spec:
         DRAFT: '草稿',
         BUILDING: '构建中',
         BUILD_FAILED: '构建失败',
-        PUBLISHED: '发布',
-        RETIRED: '弃用'
+        PUBLISHED: '发布'
       }
       return map[status] || status
     },
     canDeploy(row) {
-      return row.status !== 'BUILDING' && row.status !== 'RETIRED'
-    },
-    canRetire(row) {
-      return row.status === 'PUBLISHED'
+      return row.status !== 'BUILDING'
     },
     cancel() {
       this.open = false
