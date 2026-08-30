@@ -55,15 +55,8 @@
       <!-- 结果列表 -->
       <el-table v-loading="searching" :data="results" border stripe empty-text="没有找到相关镜像，换个名称试试">
         <el-table-column label="厂商" prop="vendor" width="130" align="center" />
-        <el-table-column label="镜像完整名称" prop="fullName" min-width="260" show-overflow-tooltip />
-        <el-table-column label="版本号" prop="tag" width="160" show-overflow-tooltip />
-        <el-table-column label="架构" prop="arch" width="140" align="center" />
-        <el-table-column label="本地文件" width="90" align="center">
-          <template slot-scope="{ row }">
-            <el-tag v-if="row.localFileExists" type="success" size="mini">已有</el-tag>
-            <el-tag v-else type="info" size="mini">无</el-tag>
-          </template>
-        </el-table-column>
+        <el-table-column label="镜像完整名称" prop="fullName" min-width="400" show-overflow-tooltip />
+        <el-table-column label="架构支持" prop="arch" min-width="240" show-overflow-tooltip />
         <el-table-column label="操作" width="230" align="center">
           <template slot-scope="{ row }">
             <el-button v-if="row.localFileExists" type="success" size="mini" icon="el-icon-download" @click="handleDownload(row)">下载</el-button>
