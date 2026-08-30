@@ -191,7 +191,16 @@ export default {
       this.sessionLoading = true
       listSession().then(response => {
         this.sessions = response.data || []
-        if (this.currentSessionId) {
+        // 支持从工作台「最近会话」直达：/ai/chat?sessionId=xxx
+        const targetId = Number(this.$route.query.sessionId)
+        if (targetId && !this.currentSessionId) {
+          const target = this.sessions.find(item => item.sessionId === targetId)
+          if (target) {
+            this.currentSessionId = target.sessionId
+            this.currentSessionName = target.sessionName
+            this.getMessages(target.sessionId)
+          }
+        } else if (this.currentSessionId) {
           const current = this.sessions.find(item => item.sessionId === this.currentSessionId)
           if (current) {
             this.currentSessionName = current.sessionName
