@@ -31,6 +31,11 @@ service.interceptors.request.use(config => {
   if (getToken() && !isToken) {
     config.headers['satoken'] = getToken() // Sa-Token：请求头携带 token
   }
+  // FormData（文件上传）不强制 JSON 头，交由浏览器生成 multipart boundary，
+  // 否则 axios 会把 FormData 序列化成 JSON（File 变成 {}）导致上传失败
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type']
+  }
   // get请求映射params参数
   if (config.method === 'get' && config.params) {
     let url = config.url + '?' + tansParams(config.params)

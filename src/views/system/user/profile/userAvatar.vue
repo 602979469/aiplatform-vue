@@ -130,18 +130,21 @@ export default {
         }
       }
     },
-    // 上传图片
+    // 上传图片（JSON + base64，走后端 JSON 变体）
     uploadImg() {
       this.$refs.cropper.getCropBlob(data => {
-        let formData = new FormData()
-        formData.append("avatarfile", data, this.options.filename)
-        uploadAvatar(formData).then(response => {
-          this.open = false
-          this.options.img = process.env.VUE_APP_BASE_API + response.data
-          store.commit('SET_AVATAR', this.options.img)
-          this.$modal.msgSuccess("修改成功")
-          this.visible = false
-        })
+        const reader = new FileReader()
+        reader.readAsDataURL(data)
+        reader.onload = () => {
+          const base64 = reader.result.split(',')[1]
+          uploadAvatar({ avatarfile: base64, filename: this.options.filename }).then(response => {
+            this.open = false
+            this.options.img = process.env.VUE_APP_BASE_API + response.data
+            store.commit('SET_AVATAR', this.options.img)
+            this.$modal.msgSuccess("修改成功")
+            this.visible = false
+          })
+        }
       })
     },
     // 实时预览
