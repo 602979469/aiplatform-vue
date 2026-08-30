@@ -107,8 +107,7 @@
 </template>
 
 <script>
-import { saveAs } from 'file-saver'
-import { listNamespaces, pageFile, uploadFile, updateFile, delFile, downloadFile } from '@/api/file'
+import { listNamespaces, pageFile, uploadFile, updateFile, delFile } from '@/api/file'
 
 export default {
   name: 'File',
@@ -194,11 +193,15 @@ export default {
       }
       return (unit === 0 ? size : size.toFixed(1)) + ' ' + units[unit]
     },
-    /** 下载 */
+    /** 下载（走文件管理流式下载，浏览器自带进度条） */
     handleDownload(row) {
-      downloadFile(row.id, row.namespace).then(blob => {
-        saveAs(blob, row.originalName)
-      })
+      const url = process.env.VUE_APP_BASE_API + '/api/file/' + row.id + '/download?namespace=' + row.namespace
+      const link = document.createElement('a')
+      link.href = url
+      link.download = row.originalName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     },
     /** 上传 */
     handleUpload() {

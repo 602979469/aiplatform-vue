@@ -28,14 +28,3 @@ export function getDownloadStatus(taskId) {
     params: { taskId: taskId }
   })
 }
-
-// 下载 tar 文件
-export function downloadMirrorFile(fileName) {
-  return request({
-    url: '/ai/mirror/download/file',
-    method: 'get',
-    params: { fileName: fileName },
-    responseType: 'blob',
-    timeout: 600000
-  })
-}

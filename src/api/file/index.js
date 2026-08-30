@@ -51,14 +51,3 @@ export function delFile(id, namespace) {
     timeout: 60000
   })
 }
-
-// 下载文件（二进制流）
-export function downloadFile(id, namespace) {
-  return request({
-    url: '/api/file/' + id + '/download',
-    method: 'get',
-    params: { namespace: namespace },
-    responseType: 'blob',
-    timeout: 60000
-  })
-}

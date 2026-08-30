@@ -86,7 +86,7 @@
 </template>
 
 <script>
-import { searchMirror, generateDownload, getDownloadStatus, downloadMirrorFile } from '@/api/ai/mirror'
+import { searchMirror, generateDownload, getDownloadStatus } from '@/api/ai/mirror'
 
 export default {
   name: 'AiMirror',
@@ -197,6 +197,7 @@ export default {
             this.$set(row, 'taskStatus', 'ready')
             this.$set(row, 'progress', 100)
             this.$set(row, 'localFileExists', true)
+            this.$set(row, 'fileId', task.fileId)
             this.$message.success('本地已有该镜像文件，可直接下载')
           } else {
             this.$set(row, 'taskId', task.taskId)
@@ -223,6 +224,7 @@ export default {
             delete this.pollTimers[row.taskId]
             this.$set(row, 'taskStatus', 'ready')
             this.$set(row, 'localFileExists', true)
+            this.$set(row, 'fileId', task.fileId)
             this.$message.success('下载链接生成完成')
           } else if (task.status === 'failed') {
             clearInterval(this.pollTimers[row.taskId])
@@ -236,26 +238,19 @@ export default {
       }, 1500)
     },
 
-    /** 下载 tar 文件 */
+    /** 下载 tar 文件（走文件管理流式下载，浏览器自带进度条） */
     handleDownload(row) {
-      const fileName = row.localFileName
-      if (!fileName) {
-        this.$message.warning('缺少文件名')
+      if (!row.fileId) {
+        this.$message.warning('缺少文件信息，请重新生成下载链接')
         return
       }
-      downloadMirrorFile(fileName).then(response => {
-        const blob = new Blob([response])
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = fileName
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-      }).catch(() => {
-        this.$message.error('下载失败，请重试')
-      })
+      const url = process.env.VUE_APP_BASE_API + '/api/file/' + row.fileId + '/download?namespace=docker_image'
+      const link = document.createElement('a')
+      link.href = url
+      link.download = row.localFileName || 'image.tar'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     }
   }
 }
