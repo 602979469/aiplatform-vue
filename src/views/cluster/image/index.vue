@@ -51,6 +51,7 @@
           <el-button size="mini" type="info" icon="el-icon-view" @click="handleView(scope.row)">查看</el-button>
           <el-button v-if="canEdit(scope.row)" size="mini" type="warning" icon="el-icon-edit" @click="handleUpdate(scope.row)">编辑</el-button>
           <el-button v-if="canBuild(scope.row)" size="mini" type="primary" icon="el-icon-video-play" @click="handleBuild(scope.row)">构建</el-button>
+          <el-button v-if="canLog(scope.row)" size="mini" type="warning" icon="el-icon-document" @click="handleLog(scope.row)">日志</el-button>
           <el-button v-if="canDelete(scope.row)" size="mini" type="danger" icon="el-icon-delete" @click="handleDelete(scope.row)">删除</el-button>
         </template>
       </el-table-column>
@@ -61,6 +62,14 @@
     <!-- 新增/修改对话框 -->
     <el-dialog :title="title" :visible.sync="open" width="760px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="120px">
+        <el-alert
+          v-if="form.imageType === 'EXTERNAL'"
+          title="现成镜像：保存后自动导入 Harbor，无需手动构建"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 14px"
+        />
         <el-row>
           <el-col :span="12">
             <el-form-item label="镜像名" prop="imageName">
@@ -136,11 +145,16 @@
         <el-descriptions-item label="创建时间" :span="2">{{ viewData.createTime }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
+
+    <!-- 构建/导入日志对话框 -->
+    <el-dialog :title="'构建日志 - ' + logImageName" :visible.sync="logOpen" width="900px" append-to-body @close="closeLog">
+      <el-input v-model="buildLog" type="textarea" :rows="20" readonly class="code-editor" />
+    </el-dialog>
   </div>
 </template>
 
 <script>
-import { pageClusterImage, addClusterImage, updateClusterImage, delClusterImage, buildClusterImage, getClusterImage } from '@/api/cluster'
+import { pageClusterImage, addClusterImage, updateClusterImage, delClusterImage, buildClusterImage, getClusterImage, getClusterImageLog } from '@/api/cluster'
 
 export default {
   name: 'ClusterImage',
@@ -153,6 +167,11 @@ export default {
       title: '',
       open: false,
       viewOpen: false,
+      logOpen: false,
+      buildLog: '',
+      logImageName: '',
+      logImageId: null,
+      logTimer: null,
       isEdit: false,
       viewData: {},
       statusMap: {
@@ -225,7 +244,10 @@ export default {
       return row.buildStatus === 'DRAFT' || row.buildStatus === 'BUILD_FAILED'
     },
     canBuild(row) {
-      return row.buildStatus === 'DRAFT' || row.buildStatus === 'BUILD_FAILED'
+      return row.imageType === 'BUILD' && (row.buildStatus === 'DRAFT' || row.buildStatus === 'BUILD_FAILED')
+    },
+    canLog(row) {
+      return row.buildStatus === 'BUILDING' || row.buildStatus === 'BUILD_FAILED'
     },
     canDelete(row) {
       return row.buildStatus !== 'BUILDING'
@@ -262,6 +284,26 @@ export default {
         this.viewOpen = true
       })
     },
+    handleLog(row) {
+      this.logOpen = true
+      this.logImageId = row.id
+      this.logImageName = row.imageName + ':' + row.version
+      this.refreshLog()
+      if (this.logTimer) clearInterval(this.logTimer)
+      this.logTimer = setInterval(() => this.refreshLog(), 3000)
+    },
+    refreshLog() {
+      if (!this.logImageId) return
+      getClusterImageLog(this.logImageId).then(res => {
+        this.buildLog = (res.data || '').trim() || '（暂无日志）'
+      })
+    },
+    closeLog() {
+      if (this.logTimer) clearInterval(this.logTimer)
+      this.logTimer = null
+      this.logImageId = null
+      this.buildLog = ''
+    },
     submitForm() {
       this.$refs.form.validate(valid => {
         if (!valid) return
@@ -283,7 +325,7 @@ export default {
           })
         } else {
           addClusterImage(data).then(() => {
-            this.$modal.msgSuccess('新增成功（草稿），可点击构建')
+            this.$modal.msgSuccess(data.imageType === 'EXTERNAL' ? '新增成功，开始自动导入' : '新增成功（草稿），可点击构建')
             this.open = false
             this.getList()
           })
