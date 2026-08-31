@@ -244,8 +244,9 @@ export default {
       return row.buildStatus === 'DRAFT' || row.buildStatus === 'BUILD_FAILED'
     },
     canBuild(row) {
-      return (row.imageType === 'BUILD' && (row.buildStatus === 'DRAFT' || row.buildStatus === 'BUILD_FAILED'))
-        || (row.imageType === 'EXTERNAL' && row.buildStatus === 'BUILD_FAILED')
+      // BUILDING 也放行：构建进程异常退出后状态残留，可手动重新触发（卡死恢复）
+      return (row.imageType === 'BUILD' && (row.buildStatus === 'DRAFT' || row.buildStatus === 'BUILD_FAILED' || row.buildStatus === 'BUILDING'))
+        || (row.imageType === 'EXTERNAL' && (row.buildStatus === 'BUILD_FAILED' || row.buildStatus === 'BUILDING'))
     },
     buildBtnText(row) {
       return row.imageType === 'EXTERNAL' ? '重新导入' : '构建'
