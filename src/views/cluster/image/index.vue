@@ -50,7 +50,7 @@
         <template slot-scope="scope">
           <el-button size="mini" type="info" icon="el-icon-view" @click="handleView(scope.row)">查看</el-button>
           <el-button v-if="canEdit(scope.row)" size="mini" type="warning" icon="el-icon-edit" @click="handleUpdate(scope.row)">编辑</el-button>
-          <el-button v-if="canBuild(scope.row)" size="mini" type="primary" icon="el-icon-video-play" @click="handleBuild(scope.row)">构建</el-button>
+          <el-button v-if="canBuild(scope.row)" size="mini" type="primary" icon="el-icon-video-play" @click="handleBuild(scope.row)">{{ buildBtnText(scope.row) }}</el-button>
           <el-button v-if="canLog(scope.row)" size="mini" type="warning" icon="el-icon-document" @click="handleLog(scope.row)">日志</el-button>
           <el-button v-if="canDelete(scope.row)" size="mini" type="danger" icon="el-icon-delete" @click="handleDelete(scope.row)">删除</el-button>
         </template>
@@ -244,7 +244,11 @@ export default {
       return row.buildStatus === 'DRAFT' || row.buildStatus === 'BUILD_FAILED'
     },
     canBuild(row) {
-      return row.imageType === 'BUILD' && (row.buildStatus === 'DRAFT' || row.buildStatus === 'BUILD_FAILED')
+      return (row.imageType === 'BUILD' && (row.buildStatus === 'DRAFT' || row.buildStatus === 'BUILD_FAILED'))
+        || (row.imageType === 'EXTERNAL' && row.buildStatus === 'BUILD_FAILED')
+    },
+    buildBtnText(row) {
+      return row.imageType === 'EXTERNAL' ? '重新导入' : '构建'
     },
     canLog(row) {
       return row.buildStatus === 'BUILDING' || row.buildStatus === 'BUILD_FAILED'
@@ -337,11 +341,12 @@ export default {
       this.reset()
     },
     handleBuild(row) {
-      this.$confirm('确认对镜像 ' + row.imageName + ':' + row.version + ' 发起构建？', '提示', {
+      const action = row.imageType === 'EXTERNAL' ? '重新导入' : '发起构建'
+      this.$confirm('确认对镜像 ' + row.imageName + ':' + row.version + ' ' + action + '？', '提示', {
         type: 'warning'
       }).then(() => {
         buildClusterImage(row.id).then(() => {
-          this.$modal.msgSuccess('已提交构建')
+          this.$modal.msgSuccess(action === '重新导入' ? '已提交重新导入' : '已提交构建')
           this.getList()
         })
       }).catch(() => {})
