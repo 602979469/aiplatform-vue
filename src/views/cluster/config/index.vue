@@ -46,7 +46,11 @@
         </template>
       </el-table-column>
       <el-table-column label="命名空间" prop="namespace" width="90" />
-      <el-table-column label="分支" prop="gitBranch" min-width="100" />
+      <el-table-column label="镜像" min-width="140">
+        <template slot-scope="scope">
+          {{ imageLabel(scope.row.imageId) }}
+        </template>
+      </el-table-column>
       <el-table-column label="自动刷新" width="90" align="center">
         <template slot-scope="scope">
           <el-tag size="mini" :type="scope.row.autoRefresh === 1 ? 'success' : 'info'">
@@ -88,13 +92,15 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="git 地址" prop="gitUrl">
-              <el-input v-model="form.gitUrl" placeholder="https://github.com/xxx/yyy.git（公开仓库无需 token；私有仓库请在地址中携带，如 https://用户名:token@github.com/xxx/yyy.git）" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="git 分支" prop="gitBranch">
-              <el-input v-model="form.gitBranch" placeholder="如：main" />
+            <el-form-item label="选择镜像" prop="imageId">
+              <el-select v-model="form.imageId" filterable placeholder="选择已发布的镜像版本" style="width: 100%">
+                <el-option
+                  v-for="img in imageOptions"
+                  :key="img.id"
+                  :label="img.imageName + ':' + img.version"
+                  :value="img.id"
+                />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -108,9 +114,6 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="Dockerfile" prop="dockerfile">
-          <el-input v-model="form.dockerfile" type="textarea" :rows="10" placeholder="用户必须提供完整 Dockerfile" class="code-editor" />
-        </el-form-item>
         <el-divider content-position="left">Deployment 生成辅助（不落库，仅用于生成 YAML 样板）</el-divider>
         <div class="gen-bar">
           <div class="gen-item">
@@ -150,13 +153,9 @@
         <el-descriptions-item label="资源名称">{{ viewData.resourceName }}</el-descriptions-item>
         <el-descriptions-item label="pod名称">{{ viewData.podName }}</el-descriptions-item>
         <el-descriptions-item label="命名空间">{{ viewData.namespace }}</el-descriptions-item>
-        <el-descriptions-item label="git 分支">{{ viewData.gitBranch }}</el-descriptions-item>
         <el-descriptions-item label="自动刷新">{{ viewData.autoRefresh === 1 ? '开' : '关' }}</el-descriptions-item>
-        <el-descriptions-item label="git 地址" :span="2">{{ viewData.gitUrl }}</el-descriptions-item>
+        <el-descriptions-item label="镜像" :span="2">{{ imageLabel(viewData.imageId) }}</el-descriptions-item>
         <el-descriptions-item label="创建时间" :span="2">{{ viewData.createTime }}</el-descriptions-item>
-        <el-descriptions-item label="Dockerfile" :span="2">
-          <pre class="view-pre">{{ viewData.dockerfile }}</pre>
-        </el-descriptions-item>
         <el-descriptions-item label="Deployment YAML" :span="2">
           <pre class="view-pre">{{ viewData.deployYaml }}</pre>
         </el-descriptions-item>
@@ -175,7 +174,7 @@
 </template>
 
 <script>
-import { pagePodConfig, addPodConfig, updatePodConfig, delPodConfig, deployPodConfig, getBuildLog, listNamespaces } from '@/api/cluster'
+import { pagePodConfig, addPodConfig, updatePodConfig, delPodConfig, deployPodConfig, getBuildLog, listNamespaces, listPublishedImages } from '@/api/cluster'
 
 export default {
   name: 'ClusterConfig',
@@ -201,6 +200,7 @@ export default {
       buildLogConfigId: null,
       isEdit: false,
       viewData: {},
+      imageOptions: [],
       queryParams: {
         pageNum: 1,
         pageSize: 10,
@@ -217,9 +217,7 @@ export default {
         resourceName: [{ required: true, message: '资源名称不能为空', trigger: 'blur' }],
         podName: [{ required: true, message: 'pod名称不能为空', trigger: 'blur' }],
         namespace: [{ required: true, message: '命名空间不能为空', trigger: 'change' }],
-        gitUrl: [{ required: true, message: 'git 地址不能为空', trigger: 'blur' }],
-        gitBranch: [{ required: true, message: 'git 分支不能为空', trigger: 'blur' }],
-        dockerfile: [{ required: true, message: 'Dockerfile 不能为空', trigger: 'blur' }],
+        imageId: [{ required: true, message: '请选择已发布的镜像', trigger: 'change' }],
         deployYaml: [{ required: true, message: 'Deployment YAML 不能为空', trigger: 'blur' }]
       }
     }
@@ -227,8 +225,19 @@ export default {
   created() {
     this.getList()
     this.loadNamespaces()
+    this.loadImageOptions()
   },
   methods: {
+    loadImageOptions() {
+      listPublishedImages().then(res => {
+        this.imageOptions = res.data || []
+      })
+    },
+    imageLabel(imageId) {
+      if (!imageId) return '-'
+      const img = this.imageOptions.find(i => i.id === imageId)
+      return img ? img.imageName + ':' + img.version : '#' + imageId
+    },
     getList() {
       this.loading = true
       pagePodConfig(this.queryParams).then(res => {
@@ -272,9 +281,7 @@ export default {
         resourceName: '',
         podName: '',
         namespace: '',
-        gitUrl: '',
-        gitBranch: '',
-        dockerfile: '',
+        imageId: null,
         deployYaml: '',
         autoRefresh: 0,
         remark: '',
@@ -487,9 +494,7 @@ spec:
         resourceName: target.resourceName + '（副本）',
         podName: target.podName + '-copy',
         namespace: target.namespace,
-        gitUrl: target.gitUrl,
-        gitBranch: target.gitBranch,
-        dockerfile: target.dockerfile,
+        imageId: target.imageId,
         deployYaml: target.deployYaml,
         autoRefresh: target.autoRefresh === 1 ? 1 : 0,
         remark: target.remark || ''

@@ -141,3 +141,70 @@ export function deleteInstance(configId) {
     timeout: 60000
   })
 }
+
+// ==================== 镜像管理 ====================
+// 镜像分页查询
+export function pageClusterImage(data) {
+  return request({
+    url: '/api/cluster/image/page',
+    method: 'get',
+    params: data,
+    timeout: 30000
+  })
+}
+
+// 已发布镜像下拉（pod 配置绑定用）
+export function listPublishedImages() {
+  return request({
+    url: '/api/cluster/image/options',
+    method: 'get',
+    timeout: 30000
+  })
+}
+
+// 镜像详情
+export function getClusterImage(id) {
+  return request({
+    url: '/api/cluster/image/' + id,
+    method: 'get',
+    timeout: 30000
+  })
+}
+
+// 创建镜像（草稿）
+export function addClusterImage(data) {
+  return request({
+    url: '/api/cluster/image',
+    method: 'post',
+    data: data,
+    timeout: 30000
+  })
+}
+
+// 修改镜像（仅草稿/构建失败）
+export function updateClusterImage(id, data) {
+  return request({
+    url: '/api/cluster/image/' + id,
+    method: 'put',
+    data: data,
+    timeout: 30000
+  })
+}
+
+// 删除镜像（草稿/失败直接删；已发布物理删除）
+export function delClusterImage(id) {
+  return request({
+    url: '/api/cluster/image/' + id,
+    method: 'delete',
+    timeout: 60000
+  })
+}
+
+// 提交构建（仅草稿/构建失败）
+export function buildClusterImage(id) {
+  return request({
+    url: '/api/cluster/image/' + id + '/build',
+    method: 'post',
+    timeout: 30000
+  })
+}
