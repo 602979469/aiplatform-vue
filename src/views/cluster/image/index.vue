@@ -366,3 +366,19 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+/* 详情展示（Dockerfile 等长文本）：换行 + 超出滚动 */
+.view-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: #f5f7fa;
+  padding: 8px;
+  border-radius: 4px;
+  max-height: 300px;
+  overflow: auto;
+}
+</style>

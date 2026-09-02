@@ -114,31 +114,34 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-divider content-position="left">Deployment 生成辅助（不落库，仅用于生成 YAML 样板）</el-divider>
-        <div class="gen-bar">
-          <div class="gen-item">
-            <span class="gen-label">架构选择</span>
-            <el-select v-model="form.genArch" placeholder="请选择" style="width: 120px">
-              <el-option label="仅 AMD" value="amd" />
-              <el-option label="仅 ARM" value="arm" />
-              <el-option label="两者" value="both" />
-            </el-select>
+        <!-- 生成辅助（架构选择/副本数/开启Ingress/生成按钮）：先隐藏，代码保留，后续优化改回 v-if="true" 即可 -->
+        <template v-if="false">
+          <el-divider content-position="left">Deployment 生成辅助（不落库，仅用于生成 YAML 样板）</el-divider>
+          <div class="gen-bar">
+            <div class="gen-item">
+              <span class="gen-label">架构选择</span>
+              <el-select v-model="form.genArch" placeholder="请选择" style="width: 120px">
+                <el-option label="仅 AMD" value="amd" />
+                <el-option label="仅 ARM" value="arm" />
+                <el-option label="两者" value="both" />
+              </el-select>
+            </div>
+            <div class="gen-item">
+              <span class="gen-label">副本数</span>
+              <el-input-number v-model="form.genReplicas" :min="1" :max="100" :controls="false" style="width: 90px" />
+            </div>
+            <div class="gen-item">
+              <span class="gen-label">开启 Ingress</span>
+              <el-switch v-model="form.genIngress" />
+            </div>
+            <div class="gen-item gen-btn">
+              <el-button type="primary" icon="el-icon-magic-stick" @click="handleGenerateYaml">生成 Deployment</el-button>
+            </div>
           </div>
-          <div class="gen-item">
-            <span class="gen-label">副本数</span>
-            <el-input-number v-model="form.genReplicas" :min="1" :max="100" :controls="false" style="width: 90px" />
-          </div>
-          <div class="gen-item">
-            <span class="gen-label">开启 Ingress</span>
-            <el-switch v-model="form.genIngress" />
-          </div>
-          <div class="gen-item gen-btn">
-            <el-button type="primary" icon="el-icon-magic-stick" @click="handleGenerateYaml">生成 Deployment</el-button>
-          </div>
-        </div>
-        <div class="gen-tip">点击「生成 Deployment」后，将按上面选项生成基础 YAML 填充到下方编辑框</div>
+          <div class="gen-tip">点击「生成 Deployment」后，将按上面选项生成基础 YAML 填充到下方编辑框</div>
+        </template>
         <el-form-item label="Deployment YAML" prop="deployYaml">
-          <el-input v-model="form.deployYaml" type="textarea" :rows="18" placeholder="点击「生成 Deployment」自动预填基础 YAML，可继续编辑；提交时仅校验 YAML 格式" class="code-editor" />
+          <el-input v-model="form.deployYaml" type="textarea" :rows="18" placeholder="请粘贴或填写 Deployment YAML；提交时仅校验 YAML 格式" class="code-editor" />
         </el-form-item>
       </el-form>
       <div slot="footer" class="dialog-footer">
