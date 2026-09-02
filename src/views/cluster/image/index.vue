@@ -44,8 +44,12 @@
       </el-table-column>
       <el-table-column label="重试" prop="buildRetryCount" width="60" align="center" />
       <el-table-column label="Harbor 引用" prop="harborRef" min-width="240" show-overflow-tooltip />
-      <el-table-column label="tar 归档" prop="tarName" min-width="160" show-overflow-tooltip />
-      <el-table-column label="创建时间" prop="createTime" width="160" />
+      <el-table-column label="tar 归档" min-width="160" show-overflow-tooltip>
+        <template slot-scope="scope">{{ tarLabel(scope.row) }}</template>
+      </el-table-column>
+      <el-table-column label="创建时间" width="170">
+        <template slot-scope="scope">{{ scope.row.createTime || '-' }}</template>
+      </el-table-column>
       <el-table-column label="操作" width="210" align="center" fixed="right">
         <template slot-scope="scope">
           <el-button size="mini" type="info" icon="el-icon-view" @click="handleView(scope.row)">查看</el-button>
@@ -134,7 +138,7 @@
         <el-descriptions-item label="状态">{{ statusMap[viewData.buildStatus] }}</el-descriptions-item>
         <el-descriptions-item label="重试次数">{{ viewData.buildRetryCount }}</el-descriptions-item>
         <el-descriptions-item label="Harbor 引用" :span="2">{{ viewData.harborRef }}</el-descriptions-item>
-        <el-descriptions-item label="tar 归档名" :span="2">{{ viewData.tarName }}</el-descriptions-item>
+        <el-descriptions-item label="tar 归档名" :span="2">{{ viewData.tarName || '未生成' }}</el-descriptions-item>
         <el-descriptions-item label="构建日志路径" :span="2">{{ viewData.buildLogPath || '-' }}</el-descriptions-item>
         <el-descriptions-item v-if="viewData.imageType === 'BUILD'" label="git 地址" :span="2">{{ viewData.gitUrl }}</el-descriptions-item>
         <el-descriptions-item v-if="viewData.imageType === 'BUILD'" label="git 分支" :span="2">{{ viewData.gitBranch }}</el-descriptions-item>
@@ -142,7 +146,7 @@
         <el-descriptions-item v-if="viewData.imageType === 'BUILD'" label="Dockerfile" :span="2">
           <pre class="view-pre">{{ viewData.dockerfile }}</pre>
         </el-descriptions-item>
-        <el-descriptions-item label="创建时间" :span="2">{{ viewData.createTime }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间" :span="2">{{ viewData.createTime || '-' }}</el-descriptions-item>
       </el-descriptions>
     </el-dialog>
 
@@ -239,6 +243,11 @@ export default {
     },
     statusTagType(status) {
       return { DRAFT: 'info', BUILDING: 'warning', BUILD_FAILED: 'danger', PUBLISHED: 'success' }[status] || 'info'
+    },
+    tarLabel(row) {
+      if (row.tarName) return row.tarName
+      // 现成镜像导入不归档 tar；草稿/构建中尚未生成
+      return row.imageType === 'EXTERNAL' ? '外部镜像（不归档）' : '未生成'
     },
     canEdit(row) {
       return row.buildStatus === 'DRAFT' || row.buildStatus === 'BUILD_FAILED'
