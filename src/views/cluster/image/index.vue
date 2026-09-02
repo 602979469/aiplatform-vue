@@ -50,9 +50,10 @@
       <el-table-column label="创建时间" width="170">
         <template slot-scope="scope">{{ scope.row.createTime || '-' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="210" align="center" fixed="right">
+      <el-table-column label="操作" width="260" align="center" fixed="right">
         <template slot-scope="scope">
           <el-button size="mini" type="info" icon="el-icon-view" @click="handleView(scope.row)">查看</el-button>
+          <el-button size="mini" type="primary" plain icon="el-icon-copy-document" @click="handleCopy(scope.row)">复制</el-button>
           <el-button v-if="canEdit(scope.row)" size="mini" type="warning" icon="el-icon-edit" @click="handleUpdate(scope.row)">编辑</el-button>
           <el-button v-if="canBuild(scope.row)" size="mini" type="primary" icon="el-icon-video-play" @click="handleBuild(scope.row)">{{ buildBtnText(scope.row) }}</el-button>
           <el-button v-if="canLog(scope.row)" size="mini" type="warning" icon="el-icon-document" @click="handleLog(scope.row)">日志</el-button>
@@ -290,6 +291,24 @@ export default {
       this.isEdit = true
       this.title = '修改镜像'
       this.form = Object.assign({}, row)
+      this.open = true
+    },
+    // 复制 = 打开新增表单并回填选中镜像，由用户修改后保存为新镜像（不调复制接口）
+    handleCopy(row) {
+      if (!row) return
+      this.reset()
+      this.isEdit = false
+      this.title = '复制镜像（可修改后保存为新镜像）'
+      Object.assign(this.form, {
+        imageName: row.imageName,
+        version: row.version,
+        imageType: row.imageType,
+        gitUrl: row.gitUrl || '',
+        gitBranch: row.gitBranch || '',
+        dockerfile: row.dockerfile || '',
+        externalImage: row.externalImage || '',
+        remark: row.remark || ''
+      })
       this.open = true
     },
     handleView(row) {
