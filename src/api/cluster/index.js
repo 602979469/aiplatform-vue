@@ -217,3 +217,43 @@ export function getClusterImageLog(id) {
     timeout: 30000
   })
 }
+
+// ==================== 密钥管理 ====================
+// 密钥分页（实时读集群，只含键名）
+export function pageClusterSecrets(query) {
+  return request({
+    url: '/api/cluster/secret/page',
+    method: 'get',
+    params: query,
+    timeout: 30000
+  })
+}
+
+// 密钥下拉选项（命名空间下全部 aiplatform-managed 密钥，含键名）
+export function listClusterSecretOptions(namespace) {
+  return request({
+    url: '/api/cluster/secret/options',
+    method: 'get',
+    params: { namespace },
+    timeout: 30000
+  })
+}
+
+// 密钥详情（键名列表）
+export function getClusterSecret(namespace, name) {
+  return request({
+    url: '/api/cluster/secret/' + encodeURIComponent(namespace) + '/' + encodeURIComponent(name),
+    method: 'get',
+    timeout: 30000
+  })
+}
+
+// 新增/覆盖键值并同步集群（值单向写入，不回显）
+export function upsertClusterSecret(data) {
+  return request({
+    url: '/api/cluster/secret/upsert',
+    method: 'post',
+    data: data,
+    timeout: 60000
+  })
+}
