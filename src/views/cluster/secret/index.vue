@@ -32,16 +32,16 @@
       <right-toolbar :showSearch.sync="showSearch" @queryTable="getList" />
     </el-row>
 
-    <el-table v-loading="loading" :data="secretList">
-      <el-table-column label="名称" prop="name" min-width="180" />
-      <el-table-column label="命名空间" prop="namespace" width="100" />
-      <el-table-column label="类型" prop="type" width="120" show-overflow-tooltip />
-      <el-table-column label="键数量" prop="keyCount" width="90" align="center" />
-      <el-table-column label="键名" prop="keysText" min-width="220" show-overflow-tooltip />
-      <el-table-column label="操作" width="170" align="center" fixed="right">
+    <el-table v-loading="loading" :data="secretList" border>
+      <el-table-column label="名称" prop="name" min-width="160" show-overflow-tooltip />
+      <el-table-column label="命名空间" prop="namespace" width="90" />
+      <el-table-column label="类型" prop="type" width="110" show-overflow-tooltip />
+      <el-table-column label="键数量" prop="keyCount" width="80" align="center" />
+      <el-table-column label="键名" prop="keysText" min-width="200" show-overflow-tooltip />
+      <el-table-column label="操作" width="130" align="center">
         <template slot-scope="scope">
-          <el-button size="mini" type="info" icon="el-icon-view" @click="handleView(scope.row)">查看</el-button>
-          <el-button size="mini" type="warning" icon="el-icon-edit" @click="openEdit(scope.row)">编辑</el-button>
+          <el-button type="text" size="small" @click="handleView(scope.row)">查看</el-button>
+          <el-button type="text" size="small" style="color: #e6a23c" @click="openEdit(scope.row)">编辑</el-button>
         </template>
       </el-table-column>
     </el-table>
