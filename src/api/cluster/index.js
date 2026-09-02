@@ -208,3 +208,12 @@ export function buildClusterImage(id) {
     timeout: 30000
   })
 }
+
+// 读取构建日志（构建中 3s 轮询）
+export function getClusterImageLog(id) {
+  return request({
+    url: '/api/cluster/image/' + id + '/log',
+    method: 'get',
+    timeout: 30000
+  })
+}
