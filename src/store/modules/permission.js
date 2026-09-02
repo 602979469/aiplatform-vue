@@ -62,7 +62,7 @@ function formatRouters(menus) {
     // 由 IframeToggle 在内容区以 iframe 内嵌；内部路由 path 用 link{menuId} 避免与 URL 冲突
     const isFrame = menu.isFrame === '0'
     const route = {
-      path: isFrame ? 'link' + menu.menuId : menu.path,
+      path: isFrame ? '/link' + menu.menuId : menu.path,
       component: isFrame ? 'InnerLink' : (menu.component || 'Layout'),
       name: 'Menu' + menu.menuId,
       meta: {

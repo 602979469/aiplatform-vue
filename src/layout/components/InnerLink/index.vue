@@ -3,7 +3,7 @@
     <iframe
       :id="iframeId"
       style="width: 100%; height: 100%"
-      :src="src"
+      :src="resolvedSrc"
       frameborder="no"
     ></iframe>
   </div>
@@ -24,6 +24,16 @@ export default {
     return {
       loading: false,
       height: document.documentElement.clientHeight - 94.5 + "px;"
+    }
+  },
+  computed: {
+    // 路由未传 props 时回退读 $route.meta.link（外链菜单）
+    resolvedSrc() {
+      if (this.src && this.src !== '/') {
+        return this.src
+      }
+      const meta = this.$route && this.$route.meta
+      return (meta && meta.link) || '/'
     }
   },
   mounted() {
