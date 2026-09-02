@@ -51,13 +51,6 @@
           {{ imageLabel(scope.row.imageId) }}
         </template>
       </el-table-column>
-      <el-table-column label="自动刷新" width="90" align="center">
-        <template slot-scope="scope">
-          <el-tag size="mini" :type="scope.row.autoRefresh === 1 ? 'success' : 'info'">
-            {{ scope.row.autoRefresh === 1 ? '开' : '关' }}
-          </el-tag>
-        </template>
-      </el-table-column>
       <el-table-column label="创建时间" prop="createTime" width="160" />
       <el-table-column label="操作" width="220" align="center" fixed="right">
         <template slot-scope="scope">
@@ -101,11 +94,6 @@
                   :value="img.id"
                 />
               </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="自动刷新">
-              <el-switch v-model="form.autoRefresh" :active-value="1" :inactive-value="0" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -156,7 +144,6 @@
         <el-descriptions-item label="资源名称">{{ viewData.resourceName }}</el-descriptions-item>
         <el-descriptions-item label="pod名称">{{ viewData.podName }}</el-descriptions-item>
         <el-descriptions-item label="命名空间">{{ viewData.namespace }}</el-descriptions-item>
-        <el-descriptions-item label="自动刷新">{{ viewData.autoRefresh === 1 ? '开' : '关' }}</el-descriptions-item>
         <el-descriptions-item label="镜像" :span="2">{{ imageLabel(viewData.imageId) }}</el-descriptions-item>
         <el-descriptions-item label="创建时间" :span="2">{{ viewData.createTime }}</el-descriptions-item>
         <el-descriptions-item label="Deployment YAML" :span="2">
@@ -286,7 +273,6 @@ export default {
         namespace: '',
         imageId: null,
         deployYaml: '',
-        autoRefresh: 0,
         remark: '',
         genArch: 'amd',
         genReplicas: 1,
@@ -304,7 +290,6 @@ export default {
       this.isEdit = true
       this.title = '修改业务pod配置'
       Object.assign(this.form, row)
-      this.form.autoRefresh = row.autoRefresh === 1 ? 1 : 0
       this.open = true
     },
     // 顶部修改按钮：基于勾选的 id 从列表取行
@@ -499,7 +484,6 @@ spec:
         namespace: target.namespace,
         imageId: target.imageId,
         deployYaml: target.deployYaml,
-        autoRefresh: target.autoRefresh === 1 ? 1 : 0,
         remark: target.remark || ''
       })
       this.open = true
