@@ -35,20 +35,10 @@
     <el-table v-loading="loading" :data="secretList">
       <el-table-column label="名称" prop="name" min-width="180" />
       <el-table-column label="命名空间" prop="namespace" width="100" />
-      <el-table-column label="类型" prop="type" min-width="160" />
-      <el-table-column label="纳管" width="90" align="center">
-        <template slot-scope="scope">
-          <el-tag v-if="scope.row.managed" size="mini" type="success">managed</el-tag>
-          <el-tag v-else size="mini" type="info">未纳管</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="键名" min-width="240">
-        <template slot-scope="scope">
-          <el-tag v-for="k in scope.row.keys" :key="k" size="mini" style="margin-right: 4px">{{ k }}</el-tag>
-          <span v-if="!scope.row.keys || scope.row.keys.length === 0">-</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="160" align="center" fixed="right">
+      <el-table-column label="类型" prop="type" width="120" show-overflow-tooltip />
+      <el-table-column label="键数量" prop="keyCount" width="90" align="center" />
+      <el-table-column label="键名" prop="keysText" min-width="220" show-overflow-tooltip />
+      <el-table-column label="操作" width="170" align="center" fixed="right">
         <template slot-scope="scope">
           <el-button size="mini" type="info" icon="el-icon-view" @click="handleView(scope.row)">查看</el-button>
           <el-button size="mini" type="warning" icon="el-icon-edit" @click="openEdit(scope.row)">编辑</el-button>
@@ -65,9 +55,6 @@
         <el-descriptions-item label="名称">{{ viewData.name }}</el-descriptions-item>
         <el-descriptions-item label="命名空间">{{ viewData.namespace }}</el-descriptions-item>
         <el-descriptions-item label="类型" :span="2">{{ viewData.type }}</el-descriptions-item>
-        <el-descriptions-item label="纳管" :span="2">
-          {{ viewData.managed ? '是（aiplatform-managed）' : '否' }}
-        </el-descriptions-item>
       </el-descriptions>
       <el-table :data="viewKeys" size="small" style="margin-top: 12px" border>
         <el-table-column label="键名" prop="key" min-width="160" />
@@ -172,7 +159,12 @@ export default {
     getList() {
       this.loading = true
       pageClusterSecrets(this.queryParams).then(res => {
-        this.secretList = (res.data && res.data.dataList) || []
+        this.secretList = ((res.data && res.data.dataList) || []).map(row => ({
+          ...row,
+          keys: row.keys || [],
+          keyCount: (row.keys || []).length,
+          keysText: (row.keys || []).join(', ')
+        }))
         this.total = (res.data && res.data.total) || 0
         this.loading = false
       }).catch(() => {
