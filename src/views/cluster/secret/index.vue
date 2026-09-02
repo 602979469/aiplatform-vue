@@ -76,19 +76,19 @@
         <el-row>
           <el-col :span="12">
             <el-form-item label="命名空间" prop="namespace">
-              <el-select v-model="editForm.namespace" :disabled="!!editForm.name" style="width: 100%">
+              <el-select v-model="editForm.namespace" :disabled="editForm.existing" style="width: 100%">
                 <el-option v-for="ns in namespaceList" :key="ns" :label="ns" :value="ns" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="Secret 名" prop="name">
-              <el-input v-model="editForm.name" :disabled="!!editForm.name"
+              <el-input v-model="editForm.name" :disabled="editForm.existing"
                         placeholder="小写，如 mysql-secret" />
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item v-if="!editForm.name" label="类型">
+        <el-form-item v-if="!editForm.existing" label="类型">
           <el-input v-model="editForm.type" placeholder="Opaque（默认）" style="width: 240px" />
         </el-form-item>
         <el-divider content-position="left">键值（已有键值不回显，填写即覆盖；新增键直接填写）</el-divider>
@@ -140,6 +140,7 @@ export default {
         namespace: 'tsk',
         name: '',
         type: 'Opaque',
+        existing: false,
         keys: []
       }
     }
@@ -197,6 +198,7 @@ export default {
         namespace: (row && row.namespace) || this.queryParams.namespace || 'tsk',
         name: (row && row.name) || '',
         type: (row && row.type) || 'Opaque',
+        existing: !!row,
         keys: []
       }
       this.editTitle = row ? '编辑密钥 - ' + row.name : '新增密钥'
@@ -256,6 +258,7 @@ export default {
         namespace: f.namespace,
         name: f.name,
         type: f.type || 'Opaque',
+        exists: f.existing,
         keys: items
       }).then(() => {
         this.$modal.msgSuccess('保存成功，已同步集群')
