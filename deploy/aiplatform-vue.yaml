@@ -91,6 +91,16 @@ spec:
                 name: aiplatform-vue
                 port:
                   number: 80
+    - host: www.aiplatform.jakt.online
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: aiplatform-vue
+                port:
+                  number: 80
     - host: dashboard.jakt.online
       http:
         paths:
