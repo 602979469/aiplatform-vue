@@ -126,7 +126,7 @@
 </template>
 
 <script>
-import { listUser, getUser, delUser, addUser, updateUser, resetUserPwd, changeUserStatus, getUserRoleIds, listRole } from "@/api/system/user"
+import { listUser, getUser, delUser, addUser, updateUser, updateUserRole, resetUserPwd, changeUserStatus, getUserRoleIds, listRole } from "@/api/system/user"
 import UserViewDrawer from "./view"
 import passwordRule from "@/utils/passwordRule"
 
@@ -314,15 +314,26 @@ export default {
         if (valid) {
           if (this.form.userId != undefined) {
             updateUser(this.form).then(() => {
+              // 角色走独立分配接口（后端 updateUser 不处理角色）
+              return updateUserRole(this.form.userId, this.form.roleIds || [])
+            }).then(() => {
               this.$modal.msgSuccess("修改成功")
               this.open = false
               this.getList()
             })
           } else {
-            addUser(this.form).then(() => {
+            addUser(this.form).then(res => {
+              const userId = (res && res.data && (res.data.userId || res.data.id)) || null
+              if (userId != null) {
+                // 新增接口已带 roleIds 时无需重复分配；兜底确保角色生效
+                return updateUserRole(userId, this.form.roleIds || [])
+              }
+            }).then(() => {
               this.$modal.msgSuccess("新增成功")
               this.open = false
               this.getList()
+            }).catch(err => {
+              this.$modal.msgError((err && err.message) || "保存失败")
             })
           }
         }
