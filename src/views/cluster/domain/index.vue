@@ -13,8 +13,11 @@
         <el-input v-model="keyword" placeholder="按域名筛选" clearable style="width: 220px" />
       </el-form-item>
       <el-form-item>
-        <el-button icon="el-icon-refresh" size="mini" @click="loadList">刷新</el-button>
+        <el-button icon="el-icon-refresh" size="mini" :disabled="busy" @click="loadList()">刷新</el-button>
         <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="openAdd">新增自定义域名</el-button>
+        <span v-if="busy" style="margin-left: 10px; color: #E6A23C; font-size: 12px">
+          <i class="el-icon-loading" /> 正在应用配置（Caddy reload），请稍候…
+        </span>
       </el-form-item>
     </el-form>
 
@@ -30,7 +33,7 @@
           <el-switch
             v-model="scope.row.caddy"
             :loading="scope.row._loading"
-            :disabled="scope.row._loading"
+            :disabled="busy || scope.row._loading"
             @change="val => onToggle(scope.row, val)"
           />
         </template>
@@ -58,6 +61,7 @@
             v-else-if="scope.row.type !== 'ingress'"
             size="mini"
             type="text"
+            :disabled="busy"
             style="color: #F56C6C"
             @click="handleDelete(scope.row)"
           >删除</el-button>
@@ -76,7 +80,7 @@
         </el-form-item>
       </el-form>
       <div slot="footer" class="dialog-footer">
-        <el-button type="primary" @click="submitAdd">保 存</el-button>
+        <el-button type="primary" :loading="busy" @click="submitAdd">保 存</el-button>
         <el-button @click="addOpen = false">取 消</el-button>
       </div>
     </el-dialog>
@@ -94,6 +98,7 @@ export default {
   data() {
     return {
       loading: false,
+      busy: false,
       list: [],
       keyword: '',
       addOpen: false,
@@ -141,16 +146,20 @@ export default {
     this.loadList()
   },
   methods: {
-    loadList() {
-      this.loading = true
-      listDomains().then(res => {
+    loadList(silent) {
+      if (!silent) {
+        this.loading = true
+      }
+      return listDomains().then(res => {
         const rows = (res && res.data) || []
         this.list = rows.map(row => {
           this.$set(row, '_loading', false)
           return row
         })
       }).finally(() => {
-        this.loading = false
+        if (!silent) {
+          this.loading = false
+        }
       })
     },
     onToggle(row, value) {
@@ -163,14 +172,16 @@ export default {
       this.doToggle(row, value)
     },
     doToggle(row, value) {
+      this.busy = true
       this.$set(row, '_loading', true)
       const action = value ? enableDomain(row.domain, row.upstream) : disableDomain(row.domain)
       action.then(() => {
         this.$message.success(value ? '已开启公网映射（首次访问约 10 秒后生效）' : '已关闭公网映射')
-        this.loadList()
+        this.loadList(true)
       }).catch(() => {
         row.caddy = !value
       }).finally(() => {
+        this.busy = false
         this.$set(row, '_loading', false)
       })
     },
@@ -186,19 +197,25 @@ export default {
         if (!valid) {
           return
         }
+        this.busy = true
         enableDomain(this.addForm.domain, this.addForm.upstream).then(() => {
           this.$message.success('已新增并开启（首次访问等约 10 秒签证书）')
           this.addOpen = false
-          this.loadList()
+          this.loadList(true)
+        }).finally(() => {
+          this.busy = false
         })
       })
     },
     handleDelete(row) {
       this.$confirm('确认删除自定义域名 ' + row.domain + ' ？将删除公网 Caddy 配置。',
         '提示', { type: 'warning' }).then(() => {
+        this.busy = true
         disableDomain(row.domain).then(() => {
           this.$message.success('已删除')
-          this.loadList()
+          this.loadList(true)
+        }).finally(() => {
+          this.busy = false
         })
       }).catch(() => {})
     }
