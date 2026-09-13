@@ -61,6 +61,7 @@ function formatRouters(menus) {
     // 外链菜单（isFrame = '0'）：path 存 http(s) 地址，映射为 InnerLink + meta.link，
     // 由 IframeToggle 在内容区以 iframe 内嵌；内部路由 path 用 link{menuId} 避免与 URL 冲突
     const isFrame = menu.isFrame === '0'
+    const link = isFrame ? normalizeLink(menu.path) : undefined
     const route = {
       path: isFrame ? '/link' + menu.menuId : menu.path,
       component: isFrame ? 'InnerLink' : (menu.component || 'Layout'),
@@ -68,7 +69,7 @@ function formatRouters(menus) {
       meta: {
         title: menu.menuName,
         icon: menu.icon || '',
-        link: isFrame ? menu.path : undefined
+        link
       },
       children: formatRouters(menu.children)
     }
@@ -77,6 +78,18 @@ function formatRouters(menus) {
     }
     return route
   })
+}
+
+/**
+ * 外链地址兜底：去掉首尾空格；未写协议时补 https://。
+ * 否则 iframe 会把域名当相对路径（dashboard.jakt.online/harbor.jakt.online）导致 404。
+ */
+function normalizeLink(path) {
+  const value = (path || '').trim()
+  if (!value) {
+    return value
+  }
+  return /^https?:\/\//i.test(value) ? value : 'https://' + value
 }
 
 // 遍历后台传来的路由字符串，转换为组件对象
