@@ -257,3 +257,33 @@ export function upsertClusterSecret(data) {
     timeout: 60000
   })
 }
+
+// ==================== 域名映射 ====================
+// 全部域名映射（公网 Caddy 站点 ∪ 集群 Ingress 域名）
+export function listDomains() {
+  return request({
+    url: '/api/cluster/domain/list',
+    method: 'get',
+    timeout: 60000
+  })
+}
+
+// 新增域名映射（填写命名空间 + Service 时同时创建 Ingress）
+export function addDomain(data) {
+  return request({
+    url: '/api/cluster/domain/add',
+    method: 'post',
+    data: data,
+    timeout: 180000
+  })
+}
+
+// 删除域名映射（同时删除 dm- 前缀 Ingress 与公网 Caddy 配置）
+export function removeDomain(domain) {
+  return request({
+    url: '/api/cluster/domain/remove',
+    method: 'post',
+    data: { domain: domain },
+    timeout: 180000
+  })
+}
