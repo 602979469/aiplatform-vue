@@ -37,13 +37,39 @@
             <div class="metric-label"><i class="el-icon-cpu" />CPU</div>
             <div class="metric-value">{{ nodeCpuPercent(node) }}<span class="stat-unit">%</span></div>
             <el-progress :percentage="nodeCpuPercent(node)" :stroke-width="6" :show-text="false" :status="nodeCpuStatus(node)" />
-            <div class="metric-sub">{{ formatCpu(node.cpuUsedMilli) }} / {{ formatCpu(node.cpuTotalMilli) }}</div>
+            <div class="metric-sub">已用 {{ formatCpu(node.cpuUsedMilli) }} / {{ formatCpu(node.cpuTotalMilli) }}</div>
+            <div class="metric-sub">
+              已分配 {{ formatCpu(node.cpuRequestMilli) }} ·
+              <span :class="allocClass(nodeRatio(node.cpuRequestMilli, node.cpuAllocatableMilli || node.cpuTotalMilli))">
+                {{ nodeRatio(node.cpuRequestMilli, node.cpuAllocatableMilli || node.cpuTotalMilli) }}%
+              </span>
+            </div>
           </div>
           <div class="node-metric-cell">
             <div class="metric-label"><i class="el-icon-coin" />内存</div>
             <div class="metric-value">{{ nodeMemoryPercent(node) }}<span class="stat-unit">%</span></div>
             <el-progress :percentage="nodeMemoryPercent(node)" :stroke-width="6" :show-text="false" :status="nodeMemoryStatus(node)" />
-            <div class="metric-sub">{{ formatBytes(node.memoryUsedBytes) }} / {{ formatBytes(node.memoryTotalBytes) }}</div>
+            <div class="metric-sub">已用 {{ formatBytes(node.memoryUsedBytes) }} / {{ formatBytes(node.memoryTotalBytes) }}</div>
+            <div class="metric-sub">
+              已分配 {{ formatBytes(node.memoryRequestBytes) }} ·
+              <span :class="allocClass(nodeRatio(node.memoryRequestBytes, node.memoryAllocatableBytes || node.memoryTotalBytes))">
+                {{ nodeRatio(node.memoryRequestBytes, node.memoryAllocatableBytes || node.memoryTotalBytes) }}%
+              </span>
+            </div>
+          </div>
+          <div class="node-metric-cell">
+            <div class="metric-label"><i class="el-icon-folder-opened" />磁盘</div>
+            <div class="metric-value">{{ nodeDiskPercent(node) }}<span class="stat-unit">%</span></div>
+            <el-progress :percentage="nodeDiskPercent(node)" :stroke-width="6" :show-text="false" :status="nodeDiskStatus(node)" />
+            <div class="metric-sub">已用 {{ formatBytes(node.diskUsedBytes) }} / {{ formatBytes(node.diskTotalBytes) }}</div>
+          </div>
+          <div class="node-metric-cell">
+            <div class="metric-label"><i class="el-icon-box" />Pod 数量</div>
+            <div class="metric-value">
+              <span :class="allocClass(nodeRatio(node.podCount, node.podAllocatable))">{{ node.podCount === null || node.podCount === undefined ? '-' : node.podCount }}</span>
+              <span class="stat-unit"> / {{ node.podAllocatable || '-' }}</span>
+            </div>
+            <div class="metric-sub">业务 Pod {{ nodePodTotal(node) }} 个</div>
           </div>
         </div>
         <div v-if="!dashboardLoading && nodes.length === 0" class="list-empty">
@@ -188,6 +214,35 @@ export default {
       return percent > 80 ? 'exception' : percent > 60 ? 'warning' : 'success'
     },
 
+    nodeDiskPercent(node) {
+      return this.nodeRatio(node.diskUsedBytes, node.diskTotalBytes)
+    },
+
+    nodeDiskStatus(node) {
+      const percent = this.nodeDiskPercent(node)
+      return percent > 80 ? 'exception' : percent > 60 ? 'warning' : 'success'
+    },
+
+    nodePodTotal(node) {
+      const map = node.podCountByNamespace || {}
+      return Object.values(map).reduce((sum, count) => sum + count, 0)
+    },
+
+    /** 占比百分比，分母缺失时返回 0 */
+    nodeRatio(value, total) {
+      if (!total || total <= 0 || value === null || value === undefined) {
+        return 0
+      }
+      return Math.round((value / total) * 100)
+    },
+
+    /** 分配率过高时高亮（调度风险提示） */
+    allocClass(percent) {
+      if (percent >= 90) return 'alloc-danger'
+      if (percent >= 75) return 'alloc-warn'
+      return ''
+    },
+
     formatCpu(milli) {
       if (milli === null || milli === undefined) {
         return '-'
@@ -277,7 +332,7 @@ export default {
 }
 .node-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
+  grid-template-columns: 1.1fr 1fr 1fr 1fr 0.9fr;
   gap: 16px;
   align-items: center;
   border: 1px solid #ebeef5;
@@ -328,6 +383,20 @@ export default {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.metric-sub .alloc-warn {
+  color: #e6a23c;
+  font-weight: 600;
+}
+.metric-sub .alloc-danger {
+  color: #f56c6c;
+  font-weight: 600;
+}
+.metric-value .alloc-warn {
+  color: #e6a23c;
+}
+.metric-value .alloc-danger {
+  color: #f56c6c;
 }
 .node-metric-cell .el-progress {
   margin-top: 6px;
@@ -422,6 +491,11 @@ export default {
 }
 
 /* 小屏适配 */
+@media (max-width: 1400px) {
+  .node-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
 @media (max-width: 1100px) {
   .quick-grid {
     grid-template-columns: repeat(2, 1fr);
