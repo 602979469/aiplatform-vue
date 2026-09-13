@@ -278,10 +278,20 @@ export function enableDomain(domain, upstream) {
   })
 }
 
-// 关闭公网映射（删除 Caddy 站点块，不影响集群 Ingress）
+// 关闭公网映射（注释 Caddy 站点块：记录保留在列表里，可再次开启）
 export function disableDomain(domain) {
   return request({
     url: '/api/cluster/domain/disable',
+    method: 'post',
+    data: { domain: domain },
+    timeout: 180000
+  })
+}
+
+// 彻底删除公网映射（移除 Caddy 站点块，含已关闭记录）
+export function deleteDomain(domain) {
+  return request({
+    url: '/api/cluster/domain/delete',
     method: 'post',
     data: { domain: domain },
     timeout: 180000

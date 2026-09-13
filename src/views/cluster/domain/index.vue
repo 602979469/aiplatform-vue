@@ -1,7 +1,7 @@
 <template>
   <div class="app-container">
     <el-alert
-      title="列表 = 集群已有 Ingress 的域名（只读，开关控制公网暴露）+ 自定义域名。打开开关即在公网 Caddy 加站点并 reload，瞬间生效；首次开启需等约 10 秒签证书。"
+      title="列表 = 集群已有 Ingress 的域名（只读，开关控制公网暴露）+ 自定义域名。开关打开即在公网 Caddy 加站点并 reload（首次约 10 秒签证书）；开关关闭只是停用（记录保留、可再开启）；自定义域名点「删除」才会彻底移除。"
       type="info"
       :closable="false"
       show-icon
@@ -88,7 +88,7 @@
 </template>
 
 <script>
-import { listDomains, enableDomain, disableDomain } from '@/api/cluster'
+import { listDomains, enableDomain, disableDomain, deleteDomain } from '@/api/cluster'
 
 const DOMAIN_PATTERN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+jakt\.online$/
 const UPSTREAM_PATTERN = /^[A-Za-z0-9._-]+:[0-9]{1,5}$/
@@ -208,11 +208,11 @@ export default {
       })
     },
     handleDelete(row) {
-      this.$confirm('确认删除自定义域名 ' + row.domain + ' ？将删除公网 Caddy 配置。',
+      this.$confirm('确认彻底删除 ' + row.domain + ' ？将把公网 Caddy 配置移除（开关关闭只是停用，仍会保留）。',
         '提示', { type: 'warning' }).then(() => {
         this.busy = true
-        disableDomain(row.domain).then(() => {
-          this.$message.success('已删除')
+        deleteDomain(row.domain).then(() => {
+          this.$message.success('已彻底删除')
           this.loadList(true)
         }).finally(() => {
           this.busy = false
