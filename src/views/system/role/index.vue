@@ -68,7 +68,7 @@
           plain
           icon="el-icon-edit"
           size="mini"
-          :disabled="single"
+          :disabled="single || superAdminSelected"
           @click="handleUpdate"
           v-hasPermi="['auth:role:edit']"
         >修改</el-button>
@@ -79,7 +79,7 @@
           plain
           icon="el-icon-delete"
           size="mini"
-          :disabled="multiple"
+          :disabled="multiple || superAdminSelected"
           @click="handleDelete"
           v-hasPermi="['auth:role:remove']"
         >删除</el-button>
@@ -99,6 +99,7 @@
             v-model="scope.row.status"
             active-value="0"
             inactive-value="1"
+            :disabled="scope.row.superAdmin"
             @change="handleStatusChange(scope.row)"
           ></el-switch>
         </template>
@@ -114,6 +115,7 @@
             size="mini"
             type="text"
             icon="el-icon-edit"
+            :disabled="scope.row.superAdmin"
             @click="handleUpdate(scope.row)"
             v-hasPermi="['auth:role:remove']"
           >修改</el-button>
@@ -121,6 +123,7 @@
             size="mini"
             type="text"
             icon="el-icon-delete"
+            :disabled="scope.row.superAdmin"
             @click="handleDelete(scope.row)"
             v-hasPermi="['auth:role:edit']"
           >删除</el-button>
@@ -216,6 +219,8 @@ export default {
       single: true,
       // 非多个禁用
       multiple: true,
+      // 选中项含超级管理员角色（不可变更，禁用批量修改/删除）
+      superAdminSelected: false,
       // 显示搜索条件
       showSearch: true,
       // 总条数
@@ -304,6 +309,10 @@ export default {
     },
     // 角色状态修改
     handleStatusChange(row) {
+      if (this.guardSuperAdmin(row)) {
+        row.status = row.status === "0" ? "1" : "0"
+        return
+      }
       let text = row.status === "0" ? "启用" : "停用"
       this.$modal.confirm('确认要"' + text + '""' + row.roleName + '"角色吗？').then(function() {
         return changeRoleStatus(row.roleId, row.status)
@@ -353,6 +362,7 @@ export default {
       this.ids = selection.map(item => item.roleId)
       this.single = selection.length != 1
       this.multiple = !selection.length
+      this.superAdminSelected = selection.some(item => item.superAdmin)
     },
     // 更多操作触发
     handleCommand(command, row) {
@@ -391,6 +401,9 @@ export default {
     },
     /** 修改按钮操作 */
     handleUpdate(row) {
+      if (this.guardSuperAdmin(row)) {
+        return
+      }
       this.reset()
       const roleId = row.roleId || this.ids
       const roleMenu = this.getRoleMenuTreeselect(roleId)
@@ -439,6 +452,9 @@ export default {
     },
     /** 删除按钮操作 */
     handleDelete(row) {
+      if (this.guardSuperAdmin(row)) {
+        return
+      }
       const roleIds = row.roleId || this.ids
       this.$modal.confirm('是否确认删除角色编号为"' + roleIds + '"的数据项？').then(function() {
         return delRole(roleIds)
@@ -446,6 +462,19 @@ export default {
         this.getList()
         this.$modal.msgSuccess("删除成功")
       }).catch(() => {})
+    },
+
+    /**
+     * 超级管理员角色不可变更（不可改、不可停用、不可删除）。
+     * 停用会导致绑定该角色的账号菜单为空、页面全部 404，因此必须拦住。
+     * 前端只做提示，最终由后端校验拦截。
+     */
+    guardSuperAdmin(row) {
+      if (row && (row.superAdmin || row.roleKey === "admin")) {
+        this.$modal.msgWarning("超级管理员角色不允许变更")
+        return true
+      }
+      return false
     },
     /**
      * 有选中菜单时保存角色菜单分配。
