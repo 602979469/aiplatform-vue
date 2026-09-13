@@ -37,7 +37,8 @@
       </el-table-column>
       <el-table-column label="类型" width="110" align="center">
         <template slot-scope="scope">
-          <el-tag v-if="scope.row.type === 'ingress'" size="mini">ingress</el-tag>
+          <el-tag v-if="scope.row.primary" size="mini" type="danger">主域名</el-tag>
+          <el-tag v-else-if="scope.row.type === 'ingress'" size="mini">ingress</el-tag>
           <el-tag v-else size="mini" type="warning">自定义</el-tag>
         </template>
       </el-table-column>
@@ -52,8 +53,9 @@
       </el-table-column>
       <el-table-column label="操作" width="110" align="center" fixed="right">
         <template slot-scope="scope">
+          <span v-if="scope.row.primary" style="color: #909399; font-size: 12px">主域名不可删除</span>
           <el-button
-            v-if="scope.row.type !== 'ingress'"
+            v-else-if="scope.row.type !== 'ingress'"
             size="mini"
             type="text"
             style="color: #F56C6C"
@@ -128,10 +130,11 @@ export default {
   computed: {
     filteredList() {
       const kw = (this.keyword || '').trim().toLowerCase()
-      if (!kw) {
-        return this.list
-      }
-      return this.list.filter(row => (row.domain || '').toLowerCase().includes(kw))
+      const rows = kw
+        ? this.list.filter(row => (row.domain || '').toLowerCase().includes(kw))
+        : this.list.slice()
+      // 主域名置顶
+      return rows.sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0))
     }
   },
   created() {
@@ -151,6 +154,15 @@ export default {
       })
     },
     onToggle(row, value) {
+      if (row.primary && !value) {
+        this.$confirm('关闭主域名 ' + row.domain + ' 会导致站点无法访问，确认关闭？', '提示', { type: 'warning' })
+          .then(() => this.doToggle(row, value))
+          .catch(() => { row.caddy = true })
+        return
+      }
+      this.doToggle(row, value)
+    },
+    doToggle(row, value) {
       this.$set(row, '_loading', true)
       const action = value ? enableDomain(row.domain, row.upstream) : disableDomain(row.domain)
       action.then(() => {
