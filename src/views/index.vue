@@ -25,6 +25,7 @@
         <div v-for="node in nodes" :key="node.nodeName" class="node-row">
           <div class="node-name-cell">
             <div class="node-name">{{ node.nodeName }}</div>
+            <div class="node-spec">{{ formatCore(node.cpuTotalMilli) }} · {{ formatBytes(node.memoryTotalBytes) }}</div>
             <div class="node-meta">
               <el-tag size="mini" :type="node.role === 'control-plane' ? 'danger' : 'primary'">
                 {{ node.role === 'control-plane' ? 'master' : node.role }}
@@ -37,7 +38,6 @@
             <div class="metric-label"><i class="el-icon-cpu" />CPU</div>
             <div class="metric-value">{{ nodeCpuPercent(node) }}<span class="stat-unit">%</span></div>
             <el-progress :percentage="nodeCpuPercent(node)" :stroke-width="6" :show-text="false" :status="nodeCpuStatus(node)" />
-            <div class="metric-sub">已用 {{ formatCpu(node.cpuUsedMilli) }} / {{ formatCpu(node.cpuTotalMilli) }}</div>
             <div class="metric-sub">
               已分配 {{ formatCpu(node.cpuRequestMilli) }} ·
               <span :class="allocClass(nodeRatio(node.cpuRequestMilli, node.cpuAllocatableMilli || node.cpuTotalMilli))">
@@ -49,7 +49,6 @@
             <div class="metric-label"><i class="el-icon-coin" />内存</div>
             <div class="metric-value">{{ nodeMemoryPercent(node) }}<span class="stat-unit">%</span></div>
             <el-progress :percentage="nodeMemoryPercent(node)" :stroke-width="6" :show-text="false" :status="nodeMemoryStatus(node)" />
-            <div class="metric-sub">已用 {{ formatBytes(node.memoryUsedBytes) }} / {{ formatBytes(node.memoryTotalBytes) }}</div>
             <div class="metric-sub">
               已分配 {{ formatBytes(node.memoryRequestBytes) }} ·
               <span :class="allocClass(nodeRatio(node.memoryRequestBytes, node.memoryAllocatableBytes || node.memoryTotalBytes))">
@@ -250,6 +249,15 @@ export default {
       return (milli / 1000).toFixed(2) + ' 核'
     },
 
+    /** 节点规格展示：整核不带小数 */
+    formatCore(milli) {
+      if (milli === null || milli === undefined) {
+        return '-'
+      }
+      const cores = milli / 1000
+      return (Number.isInteger(cores) ? cores : cores.toFixed(1)) + ' 核'
+    },
+
     formatBytes(bytes) {
       if (bytes === null || bytes === undefined) {
         return '-'
@@ -351,6 +359,11 @@ export default {
   font-size: 16px;
   font-weight: 600;
   color: #303133;
+  margin-bottom: 6px;
+}
+.node-spec {
+  font-size: 12px;
+  color: #606266;
   margin-bottom: 6px;
 }
 .node-meta .el-tag {
