@@ -69,7 +69,7 @@
     <el-dialog title="新增自定义域名" :visible.sync="addOpen" width="560px" append-to-body>
       <el-form ref="addForm" :model="addForm" :rules="addRules" label-width="110px">
         <el-form-item label="域名" prop="domain">
-          <el-input v-model="addForm.domain" placeholder="例如 demo.jakt.online（只允许 *.jakt.online）" />
+          <el-input v-model="addForm.domain" placeholder="例如 demo.jakt.online 或 www.aiplatform.jakt.online" />
         </el-form-item>
         <el-form-item label="上游地址" prop="upstream">
           <el-input v-model="addForm.upstream" placeholder="默认 127.0.0.1:8080（集群 frp）；其他 frp 可填对应地址" />
@@ -86,7 +86,7 @@
 <script>
 import { listDomains, enableDomain, disableDomain } from '@/api/cluster'
 
-const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?\.jakt\.online$/
+const DOMAIN_PATTERN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+jakt\.online$/
 const UPSTREAM_PATTERN = /^[A-Za-z0-9._-]+:[0-9]{1,5}$/
 
 export default {
@@ -106,7 +106,7 @@ export default {
               if (!value || DOMAIN_PATTERN.test(value)) {
                 callback()
               } else {
-                callback(new Error('只允许 xxxx.jakt.online 形式'))
+                callback(new Error('只允许 *.jakt.online（支持多级）'))
               }
             },
             trigger: 'blur'
