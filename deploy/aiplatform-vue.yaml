@@ -81,16 +81,6 @@ spec:
                 name: aiplatform-vue
                 port:
                   number: 80
-    - host: aiplatform.jakt.online
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: aiplatform-vue
-                port:
-                  number: 80
     - host: www.aiplatform.jakt.online
       http:
         paths:
@@ -102,28 +92,6 @@ spec:
                 port:
                   number: 80
     - host: jakt.online
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: aiplatform-vue
-                port:
-                  number: 80
----
-# 内网专用入口：dashboard.jakt.online 前端，仅内网 hosts 解析
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: aiplatform-web-inner
-  namespace: tsk
-  annotations:
-    nginx.ingress.kubernetes.io/use-forwarded-headers: "true"
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: dashboard.jakt.online
       http:
         paths:
           - path: /
