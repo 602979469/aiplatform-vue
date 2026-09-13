@@ -1,86 +1,76 @@
 <template>
   <div class="app-container">
     <el-alert
-      title="域名映射：新增时会同时创建集群 Ingress（内部路由）和公网 Caddy 入口；域名统一走泛解析 *.jakt.online，无需改 DNS。"
+      title="列表 = 集群已有 Ingress 的域名（只读，开关控制公网暴露）+ 自定义域名。打开开关即在公网 Caddy 加站点并 reload，瞬间生效；首次开启需等约 10 秒签证书。"
       type="info"
       :closable="false"
       show-icon
       style="margin-bottom: 14px"
     />
 
-    <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
-        <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="openAdd">新增映射</el-button>
-      </el-col>
-      <el-col :span="1.5">
+    <el-form :inline="true" size="small">
+      <el-form-item label="域名">
+        <el-input v-model="keyword" placeholder="按域名筛选" clearable style="width: 220px" />
+      </el-form-item>
+      <el-form-item>
         <el-button icon="el-icon-refresh" size="mini" @click="loadList">刷新</el-button>
-      </el-col>
-    </el-row>
+        <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="openAdd">新增自定义域名</el-button>
+      </el-form-item>
+    </el-form>
 
-    <el-table v-loading="loading" :data="list" border>
-      <el-table-column label="域名" min-width="240" show-overflow-tooltip>
+    <el-table v-loading="loading" :data="filteredList" border>
+      <el-table-column label="域名" min-width="260" show-overflow-tooltip>
         <template slot-scope="scope">
-          <a :href="'https://' + scope.row.domain" target="_blank" rel="noopener">{{ scope.row.domain }}</a>
+          <a v-if="scope.row.caddy" :href="'https://' + scope.row.domain" target="_blank" rel="noopener">{{ scope.row.domain }}</a>
+          <span v-else>{{ scope.row.domain }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="公网入口(Caddy)" width="140" align="center">
+      <el-table-column label="Caddy 开关" width="120" align="center">
         <template slot-scope="scope">
-          <el-tag v-if="scope.row.caddy" type="success" size="mini">已开通</el-tag>
-          <el-tag v-else type="info" size="mini">未开通</el-tag>
+          <el-switch
+            v-model="scope.row.caddy"
+            :loading="scope.row._loading"
+            :disabled="scope.row._loading"
+            @change="val => onToggle(scope.row, val)"
+          />
         </template>
       </el-table-column>
-      <el-table-column label="集群路由(Ingress)" width="140" align="center">
+      <el-table-column label="类型" width="110" align="center">
         <template slot-scope="scope">
-          <el-tag v-if="scope.row.ingress" type="success" size="mini">已配置</el-tag>
-          <el-tag v-else type="info" size="mini">无</el-tag>
+          <el-tag v-if="scope.row.type === 'ingress'" size="mini">ingress</el-tag>
+          <el-tag v-else size="mini" type="warning">自定义</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="目标服务" min-width="220" show-overflow-tooltip>
+      <el-table-column label="目标服务" min-width="240" show-overflow-tooltip>
         <template slot-scope="scope">
-          <span v-if="scope.row.service">
+          <span v-if="scope.row.type === 'ingress'">
             {{ scope.row.namespace }} / {{ scope.row.service }}:{{ scope.row.port }}
           </span>
-          <span v-else style="color: #909399">—</span>
+          <span v-else-if="scope.row.upstream">{{ scope.row.upstream }}</span>
+          <span v-else style="color: #909399">127.0.0.1:8080（默认）</span>
         </template>
       </el-table-column>
-      <el-table-column label="Ingress 名称" min-width="200" show-overflow-tooltip>
+      <el-table-column label="操作" width="110" align="center" fixed="right">
         <template slot-scope="scope">
-          <span v-if="scope.row.ingressName">
-            {{ scope.row.ingressName }}
-            <el-tag v-if="scope.row.managed" size="mini" type="warning" style="margin-left: 4px">纳管</el-tag>
-          </span>
-          <span v-else style="color: #909399">—</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="110" fixed="right" align="center">
-        <template slot-scope="scope">
-          <el-button size="mini" type="text" style="color: #F56C6C" @click="handleRemove(scope.row)">删除</el-button>
+          <el-button
+            v-if="scope.row.type !== 'ingress'"
+            size="mini"
+            type="text"
+            style="color: #F56C6C"
+            @click="handleDelete(scope.row)"
+          >删除</el-button>
+          <span v-else style="color: #909399; font-size: 12px">由 Ingress 决定</span>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog title="新增域名映射" :visible.sync="addOpen" width="620px" append-to-body>
+    <el-dialog title="新增自定义域名" :visible.sync="addOpen" width="560px" append-to-body>
       <el-form ref="addForm" :model="addForm" :rules="addRules" label-width="110px">
         <el-form-item label="域名" prop="domain">
-          <el-input v-model="addForm.domain" placeholder="例如 demo.jakt.online（只能填 *.jakt.online）" />
+          <el-input v-model="addForm.domain" placeholder="例如 demo.jakt.online（只允许 *.jakt.online）" />
         </el-form-item>
-        <el-divider content-position="left">集群内路由（可留空：只开公网入口，不建 Ingress）</el-divider>
-        <el-row>
-          <el-col :span="12">
-            <el-form-item label="命名空间" prop="namespace">
-              <el-select v-model="addForm.namespace" placeholder="请选择" clearable style="width: 100%">
-                <el-option v-for="ns in namespaceList" :key="ns" :label="ns" :value="ns" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="Service" prop="service">
-              <el-input v-model="addForm.service" placeholder="如 code-generate" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="端口" prop="port">
-          <el-input-number v-model="addForm.port" :min="1" :max="65535" controls-position="right" style="width: 160px" />
+        <el-form-item label="上游地址" prop="upstream">
+          <el-input v-model="addForm.upstream" placeholder="默认 127.0.0.1:8080（集群 frp）；其他 frp 可填对应地址" />
         </el-form-item>
       </el-form>
       <div slot="footer" class="dialog-footer">
@@ -92,9 +82,10 @@
 </template>
 
 <script>
-import { listDomains, addDomain, removeDomain, listNamespaces } from '@/api/cluster'
+import { listDomains, enableDomain, disableDomain } from '@/api/cluster'
 
 const DOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?\.jakt\.online$/
+const UPSTREAM_PATTERN = /^[A-Za-z0-9._-]+:[0-9]{1,5}$/
 
 export default {
   name: 'ClusterDomain',
@@ -102,14 +93,9 @@ export default {
     return {
       loading: false,
       list: [],
-      namespaceList: [],
+      keyword: '',
       addOpen: false,
-      addForm: {
-        domain: '',
-        namespace: 'tsk',
-        service: '',
-        port: 80
-      },
+      addForm: { domain: '', upstream: '127.0.0.1:8080' },
       addRules: {
         domain: [
           { required: true, message: '域名不能为空', trigger: 'blur' },
@@ -123,29 +109,61 @@ export default {
             },
             trigger: 'blur'
           }
+        ],
+        upstream: [
+          {
+            validator: (rule, value, callback) => {
+              if (!value || UPSTREAM_PATTERN.test(value)) {
+                callback()
+              } else {
+                callback(new Error('上游格式如 127.0.0.1:8080'))
+              }
+            },
+            trigger: 'blur'
+          }
         ]
       }
     }
   },
+  computed: {
+    filteredList() {
+      const kw = (this.keyword || '').trim().toLowerCase()
+      if (!kw) {
+        return this.list
+      }
+      return this.list.filter(row => (row.domain || '').toLowerCase().includes(kw))
+    }
+  },
   created() {
     this.loadList()
-    listNamespaces().then(res => {
-      this.namespaceList = (res && res.data) || []
-    }).catch(() => {
-      this.namespaceList = ['tsk']
-    })
   },
   methods: {
     loadList() {
       this.loading = true
       listDomains().then(res => {
-        this.list = (res && res.data) || []
+        const rows = (res && res.data) || []
+        this.list = rows.map(row => {
+          this.$set(row, '_loading', false)
+          return row
+        })
       }).finally(() => {
         this.loading = false
       })
     },
+    onToggle(row, value) {
+      this.$set(row, '_loading', true)
+      const action = value ? enableDomain(row.domain, row.upstream) : disableDomain(row.domain)
+      action.then(() => {
+        this.$message.success(value ? '已开启公网映射（首次访问约 10 秒后生效）' : '已关闭公网映射')
+        this.loadList()
+      }).catch(() => {
+        row.caddy = !value
+      }).finally(() => {
+        this.$set(row, '_loading', false)
+      })
+    },
     openAdd() {
-      this.addForm = { domain: '', namespace: 'tsk', service: '', port: 80 }
+      this.addForm = { domain: '', upstream: '127.0.0.1:8080' }
       this.addOpen = true
       this.$nextTick(() => {
         this.$refs.addForm && this.$refs.addForm.clearValidate()
@@ -156,27 +174,17 @@ export default {
         if (!valid) {
           return
         }
-        const form = this.addForm
-        if ((form.namespace && !form.service) || (!form.namespace && form.service)) {
-          this.$message.warning('命名空间与 Service 需同时填写，或都留空（仅开公网入口）')
-          return
-        }
-        addDomain({
-          domain: form.domain,
-          namespace: form.namespace || null,
-          service: form.service || null,
-          port: form.port || 80
-        }).then(() => {
-          this.$message.success('新增成功（首次访问需等待 Caddy 签发证书，约 10 秒）')
+        enableDomain(this.addForm.domain, this.addForm.upstream).then(() => {
+          this.$message.success('已新增并开启（首次访问等约 10 秒签证书）')
           this.addOpen = false
           this.loadList()
         })
       })
     },
-    handleRemove(row) {
-      this.$confirm('确认删除域名映射 ' + row.domain + ' ？将同时删除集群 Ingress（dm- 前缀）与公网 Caddy 配置。',
+    handleDelete(row) {
+      this.$confirm('确认删除自定义域名 ' + row.domain + ' ？将删除公网 Caddy 配置。',
         '提示', { type: 'warning' }).then(() => {
-        removeDomain(row.domain).then(() => {
+        disableDomain(row.domain).then(() => {
           this.$message.success('已删除')
           this.loadList()
         })
