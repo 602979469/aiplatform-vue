@@ -20,10 +20,10 @@
             <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd" v-hasPermi="['auth:user:edit']">新增</el-button>
           </el-col>
           <el-col :span="1.5">
-            <el-button type="success" plain icon="el-icon-edit" size="mini" :disabled="single" @click="handleUpdate" v-hasPermi="['auth:user:edit']">修改</el-button>
+            <el-button type="success" plain icon="el-icon-edit" size="mini" :disabled="single || superAdminSelected" @click="handleUpdate" v-hasPermi="['auth:user:edit']">修改</el-button>
           </el-col>
           <el-col :span="1.5">
-            <el-button type="danger" plain icon="el-icon-delete" size="mini" :disabled="multiple" @click="handleDelete" v-hasPermi="['auth:user:edit']">删除</el-button>
+            <el-button type="danger" plain icon="el-icon-delete" size="mini" :disabled="multiple || superAdminSelected" @click="handleDelete" v-hasPermi="['auth:user:edit']">删除</el-button>
           </el-col>
           <right-toolbar :showSearch.sync="showSearch" @queryTable="getList" :columns="columns"></right-toolbar>
         </el-row>
@@ -40,7 +40,7 @@
           <el-table-column label="邮箱" align="center" key="email" prop="email" v-if="columns.email.visible" :show-overflow-tooltip="true" />
           <el-table-column label="状态" align="center" key="status" v-if="columns.status.visible">
             <template slot-scope="scope">
-              <el-switch v-model="scope.row.status" active-value="0" inactive-value="1" @change="handleStatusChange(scope.row)"></el-switch>
+              <el-switch v-model="scope.row.status" active-value="0" inactive-value="1" :disabled="scope.row.superAdmin" @change="handleStatusChange(scope.row)"></el-switch>
             </template>
           </el-table-column>
           <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns.createTime.visible" width="160">
@@ -50,8 +50,8 @@
           </el-table-column>
           <el-table-column label="操作" align="center" width="160" class-name="small-padding fixed-width">
             <template slot-scope="scope">
-              <el-button size="mini" type="text" icon="el-icon-edit" @click="handleUpdate(scope.row)" v-hasPermi="['auth:user:edit']">修改</el-button>
-              <el-button size="mini" type="text" icon="el-icon-delete" @click="handleDelete(scope.row)" v-hasPermi="['auth:user:edit']">删除</el-button>
+              <el-button size="mini" type="text" icon="el-icon-edit" :disabled="scope.row.superAdmin" @click="handleUpdate(scope.row)" v-hasPermi="['auth:user:edit']">修改</el-button>
+              <el-button size="mini" type="text" icon="el-icon-delete" :disabled="scope.row.superAdmin" @click="handleDelete(scope.row)" v-hasPermi="['auth:user:edit']">删除</el-button>
               <el-dropdown size="mini" @command="(command) => handleCommand(command, scope.row)" v-hasPermi="['auth:user:resetPwd', 'auth:user:edit']">
                 <el-button size="mini" type="text" icon="el-icon-d-arrow-right">更多</el-button>
                 <el-dropdown-menu slot="dropdown">
@@ -144,6 +144,8 @@ export default {
       single: true,
       // 非多个禁用
       multiple: true,
+      // 选中项含超级管理员（不可变更账号，禁用批量修改/删除）
+      superAdminSelected: false,
       // 显示搜索条件
       showSearch: true,
       // 总条数
@@ -220,6 +222,9 @@ export default {
     },
     // 用户状态修改
     handleStatusChange(row) {
+      if (this.guardSuperAdmin(row)) {
+        return
+      }
       let text = row.status === "0" ? "启用" : "停用"
       this.$modal.confirm('确认要"' + text + '""' + row.username + '"用户吗？').then(function() {
         return changeUserStatus(row.userId, row.status)
@@ -263,6 +268,7 @@ export default {
       this.ids = selection.map(item => item.userId)
       this.single = selection.length != 1
       this.multiple = !selection.length
+      this.superAdminSelected = selection.some(item => item.superAdmin)
     },
     // 更多操作触发
     handleCommand(command, row) {
@@ -282,6 +288,9 @@ export default {
     },
     /** 修改按钮操作 */
     handleUpdate(row) {
+      if (this.guardSuperAdmin(row)) {
+        return
+      }
       this.reset()
       const userId = row.userId || this.ids
       getUser(userId).then(response => {
@@ -341,6 +350,9 @@ export default {
     },
     /** 删除按钮操作 */
     handleDelete(row) {
+      if (this.guardSuperAdmin(row)) {
+        return
+      }
       const userIds = row.userId || this.ids
       this.$modal.confirm('是否确认删除用户编号为"' + userIds + '"的数据项？').then(function() {
         return delUser(userIds)
@@ -348,6 +360,18 @@ export default {
         this.getList()
         this.$modal.msgSuccess("删除成功")
       }).catch(() => {})
+    },
+
+    /**
+     * 超级管理员账号不可变更（不可改、不可删除、不可停用）。
+     * 前端只做提示，最终由后端校验拦截。
+     */
+    guardSuperAdmin(row) {
+      if (row && row.superAdmin) {
+        this.$modal.msgWarning("超级管理员账号不允许变更")
+        return true
+      }
+      return false
     },
     /** 详情按钮操作 */
     handleViewData(row) {
