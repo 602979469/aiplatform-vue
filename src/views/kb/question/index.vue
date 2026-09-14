@@ -1,0 +1,209 @@
+<template>
+  <div class="app-container kb-search">
+    <div class="kb-search__box">
+      <el-input
+        v-model="keyword"
+        size="large"
+        clearable
+        placeholder="搜索 Java 面试题 / 知识点，例如：线程池、JVM 垃圾回收、缓存穿透"
+        @keyup.enter.native="doSearch()"
+      >
+        <el-button slot="append" icon="el-icon-search" @click="doSearch()">搜索</el-button>
+      </el-input>
+
+      <div class="kb-search__row">
+        <span class="kb-search__label">热门搜索：</span>
+        <el-tag
+          v-for="word in hotWords"
+          :key="word"
+          size="small"
+          effect="plain"
+          class="kb-search__tag"
+          @click.native="doSearch(word)"
+        >{{ word }}</el-tag>
+      </div>
+
+      <div v-if="history.length" class="kb-search__row">
+        <span class="kb-search__label">搜索历史：</span>
+        <el-tag
+          v-for="word in history"
+          :key="word"
+          size="mini"
+          type="info"
+          effect="plain"
+          class="kb-search__tag"
+          @click.native="doSearch(word)"
+        >{{ word }}</el-tag>
+        <el-button type="text" size="mini" @click="clearHistory">清空历史</el-button>
+      </div>
+    </div>
+
+    <div v-loading="loading" class="kb-search__result">
+      <div v-if="searched" class="kb-search__meta">
+        共 <b>{{ total }}</b> 条结果<span v-if="cost">，耗时 {{ cost }} ms</span>
+      </div>
+
+      <div v-for="item in list" :key="item.id" class="kb-search__item">
+        <div class="kb-search__title" v-html="item.title"></div>
+        <div class="kb-search__snippet" v-html="item.snippet"></div>
+        <div class="kb-search__tags">
+          <el-tag v-if="item.category" size="mini" effect="plain">{{ item.category }}</el-tag>
+          <el-tag
+            v-for="tag in splitTags(item.tags)"
+            :key="tag"
+            size="mini"
+            type="success"
+            effect="plain"
+          >{{ tag }}</el-tag>
+        </div>
+      </div>
+
+      <el-empty v-if="searched && !loading && !list.length" description="没有找到相关题目，换个关键词试试" />
+
+      <el-pagination
+        v-if="total > queryParams.pageSize"
+        class="kb-search__pager"
+        background
+        layout="prev, pager, next, total"
+        :total="total"
+        :current-page.sync="queryParams.pageNum"
+        :page-size="queryParams.pageSize"
+        @current-change="fetchList"
+      />
+    </div>
+  </div>
+</template>
+
+<script>
+import { searchQuestions } from '@/api/kb'
+
+const HISTORY_KEY = 'kb_search_history'
+const HISTORY_MAX = 10
+
+export default {
+  name: 'KbQuestionSearch',
+  data() {
+    return {
+      keyword: '',
+      hotWords: ['线程池', 'JVM 垃圾回收', 'HashMap', 'synchronized', 'Spring 事务', 'MySQL 索引', '缓存穿透', '分布式锁'],
+      history: [],
+      list: [],
+      total: 0,
+      cost: 0,
+      loading: false,
+      searched: false,
+      queryParams: { pageNum: 1, pageSize: 10 }
+    }
+  },
+  created() {
+    try {
+      this.history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
+    } catch (e) {
+      this.history = []
+    }
+  },
+  methods: {
+    splitTags(tags) {
+      return tags ? tags.split(',').filter(Boolean) : []
+    },
+    doSearch(word) {
+      if (typeof word === 'string') {
+        this.keyword = word
+      }
+      this.queryParams.pageNum = 1
+      this.saveHistory(this.keyword)
+      this.fetchList()
+    },
+    fetchList() {
+      const kw = (this.keyword || '').trim()
+      this.loading = true
+      this.searched = true
+      const start = Date.now()
+      searchQuestions({
+        keyword: kw,
+        pageNum: this.queryParams.pageNum,
+        pageSize: this.queryParams.pageSize
+      }).then(res => {
+        const data = (res && res.data) || {}
+        this.list = data.list || []
+        this.total = data.total || 0
+        this.cost = Date.now() - start
+      }).finally(() => {
+        this.loading = false
+      })
+    },
+    saveHistory(word) {
+      const value = (word || '').trim()
+      if (!value) {
+        return
+      }
+      const next = [value].concat(this.history.filter(item => item !== value)).slice(0, HISTORY_MAX)
+      this.history = next
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
+    },
+    clearHistory() {
+      this.history = []
+      localStorage.removeItem(HISTORY_KEY)
+    }
+  }
+}
+</script>
+
+<style scoped>
+.kb-search__box {
+  max-width: 900px;
+  margin: 0 auto 18px;
+}
+.kb-search__row {
+  margin-top: 12px;
+  line-height: 28px;
+}
+.kb-search__label {
+  color: #909399;
+  font-size: 13px;
+}
+.kb-search__tag {
+  margin-right: 8px;
+  cursor: pointer;
+}
+.kb-search__result {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.kb-search__meta {
+  color: #909399;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.kb-search__item {
+  padding: 14px 0;
+  border-bottom: 1px solid #ebeef5;
+}
+.kb-search__title {
+  font-size: 16px;
+  color: #409eff;
+  margin-bottom: 6px;
+}
+.kb-search__snippet {
+  color: #606266;
+  font-size: 13px;
+  line-height: 22px;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+.kb-search__snippet >>> em,
+.kb-search__title >>> em {
+  color: #f56c6c;
+  font-style: normal;
+}
+.kb-search__tags {
+  line-height: 24px;
+}
+.kb-search__tags .el-tag {
+  margin-right: 6px;
+}
+.kb-search__pager {
+  margin-top: 18px;
+  text-align: center;
+}
+</style>
