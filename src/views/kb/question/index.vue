@@ -41,6 +41,9 @@
     <div v-loading="loading" class="kb-search__result">
       <div v-if="searched" class="kb-search__meta">
         共 <b>{{ total }}</b> 条结果<span v-if="cost">，耗时 {{ cost }} ms</span>
+        <span v-if="total > pagerLimit" class="kb-search__limit">
+          （结果过多，最多翻看前 {{ pagerLimit }} 条，请细化关键词）
+        </span>
       </div>
 
       <div v-for="item in list" :key="item.id" class="kb-search__item">
@@ -61,11 +64,11 @@
       <el-empty v-if="searched && !loading && !list.length" description="没有找到相关题目，换个关键词试试" />
 
       <el-pagination
-        v-if="total > queryParams.pageSize"
+        v-if="pagerTotal > queryParams.pageSize"
         class="kb-search__pager"
         background
         layout="prev, pager, next, total"
-        :total="total"
+        :total="pagerTotal"
         :current-page.sync="queryParams.pageNum"
         :page-size="queryParams.pageSize"
         @current-change="fetchList"
@@ -92,7 +95,13 @@ export default {
       cost: 0,
       loading: false,
       searched: false,
+      pagerLimit: 1000,
       queryParams: { pageNum: 1, pageSize: 10 }
+    }
+  },
+  computed: {
+    pagerTotal() {
+      return Math.min(this.total, this.pagerLimit)
     }
   },
   created() {
@@ -174,6 +183,10 @@ export default {
   color: #909399;
   font-size: 13px;
   margin-bottom: 12px;
+}
+.kb-search__limit {
+  color: #e6a23c;
+  margin-left: 6px;
 }
 .kb-search__item {
   padding: 14px 0;
