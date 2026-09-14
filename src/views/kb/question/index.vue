@@ -46,7 +46,7 @@
         </span>
       </div>
 
-      <div v-for="item in list" :key="item.id" class="kb-search__item">
+      <div v-for="item in list" :key="item.id" class="kb-search__item" @click="openDetail(item)">
         <div class="kb-search__title" v-html="item.title"></div>
         <div class="kb-search__snippet" v-html="item.snippet"></div>
         <div class="kb-search__tags">
@@ -74,11 +74,30 @@
         @current-change="fetchList"
       />
     </div>
+
+    <el-drawer
+      :title="detail.title"
+      :visible.sync="detailVisible"
+      direction="rtl"
+      size="52%"
+      append-to-body
+      custom-class="kb-detail-drawer"
+    >
+      <div v-loading="detailLoading" class="kb-detail">
+        <div class="kb-detail__meta">
+          <el-tag v-if="detail.category" size="mini" effect="plain">{{ detail.category }}</el-tag>
+          <el-tag v-if="detail.difficulty" size="mini" type="warning" effect="plain">{{ detail.difficulty }}</el-tag>
+          <el-tag v-for="tag in splitTags(detail.tags)" :key="tag" size="mini" type="success" effect="plain">{{ tag }}</el-tag>
+        </div>
+        <div class="kb-detail__content" v-html="detailHtml"></div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script>
-import { searchQuestions } from '@/api/kb'
+import { marked } from 'marked'
+import { searchQuestions, getQuestionDetail } from '@/api/kb'
 
 const HISTORY_KEY = 'kb_search_history'
 const HISTORY_MAX = 10
@@ -96,6 +115,10 @@ export default {
       loading: false,
       searched: false,
       pagerLimit: 1000,
+      detailVisible: false,
+      detailLoading: false,
+      detail: {},
+      detailHtml: '',
       queryParams: { pageNum: 1, pageSize: 10 }
     }
   },
@@ -114,6 +137,18 @@ export default {
   methods: {
     splitTags(tags) {
       return tags ? tags.split(',').filter(Boolean) : []
+    },
+    openDetail(item) {
+      this.detailVisible = true
+      this.detailLoading = true
+      this.detail = { title: item.title }
+      this.detailHtml = ''
+      getQuestionDetail(item.id).then(res => {
+        this.detail = (res && res.data) || {}
+        this.detailHtml = marked.parse(this.detail.content || '')
+      }).finally(() => {
+        this.detailLoading = false
+      })
     },
     doSearch(word) {
       if (typeof word === 'string') {
@@ -191,6 +226,11 @@ export default {
 .kb-search__item {
   padding: 14px 0;
   border-bottom: 1px solid #ebeef5;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.kb-search__item:hover {
+  background: #f5f7fa;
 }
 .kb-search__title {
   font-size: 16px;
@@ -218,5 +258,63 @@ export default {
 .kb-search__pager {
   margin-top: 18px;
   text-align: center;
+}
+.kb-detail {
+  padding: 0 20px 24px;
+}
+.kb-detail__meta {
+  margin-bottom: 12px;
+}
+.kb-detail__meta .el-tag {
+  margin-right: 6px;
+}
+.kb-detail__content {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #303133;
+  word-break: break-word;
+}
+.kb-detail__content img {
+  max-width: 100%;
+}
+.kb-detail__content h1,
+.kb-detail__content h2,
+.kb-detail__content h3 {
+  font-size: 16px;
+  margin: 14px 0 8px;
+}
+.kb-detail__content pre {
+  background: #f6f8fa;
+  padding: 10px;
+  border-radius: 4px;
+  overflow: auto;
+}
+.kb-detail__content code {
+  background: #f6f8fa;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.kb-detail__content pre code {
+  background: transparent;
+  padding: 0;
+}
+.kb-detail__content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+}
+.kb-detail__content th,
+.kb-detail__content td {
+  border: 1px solid #dcdfe6;
+  padding: 6px 10px;
+}
+.kb-detail__content blockquote {
+  margin: 8px 0;
+  padding: 6px 12px;
+  border-left: 4px solid #dcdfe6;
+  color: #606266;
+  background: #fafafa;
 }
 </style>
