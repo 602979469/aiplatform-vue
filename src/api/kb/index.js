@@ -127,6 +127,15 @@ export function getExamResult(paperId) {
   })
 }
 
+// 删除考试记录（试卷 + 答题明细）
+export function deleteExamPaper(paperId) {
+  return request({
+    url: '/api/kb/exam/paper/' + paperId,
+    method: 'delete',
+    timeout: 30000
+  })
+}
+
 // 考试记录
 export function listExamHistory(params) {
   return request({

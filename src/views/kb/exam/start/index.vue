@@ -169,6 +169,57 @@
           <el-button type="danger" size="small" style="width: 100%" @click="handleSubmit()">交卷</el-button>
         </div>
       </div>
+
+      <!-- 手机端底部操作条 -->
+      <div class="exam-mobile-bar">
+        <div class="exam-mobile-bar__item" @click="cardVisible = true">
+          <i class="el-icon-tickets" />
+          <span>答题卡 {{ answeredCount }}/{{ paper.questions.length }}</span>
+        </div>
+        <div
+          class="exam-mobile-bar__item"
+          :class="{ 'is-disabled': currentIndex === 0 }"
+          @click="goTo(currentIndex - 1)"
+        >
+          <i class="el-icon-arrow-left" />
+          <span>上一题</span>
+        </div>
+        <div
+          class="exam-mobile-bar__item"
+          :class="{ 'is-disabled': currentIndex >= paper.questions.length - 1 }"
+          @click="goTo(currentIndex + 1)"
+        >
+          <i class="el-icon-arrow-right" />
+          <span>下一题</span>
+        </div>
+        <div class="exam-mobile-bar__item is-submit" @click="handleSubmit()">
+          <i class="el-icon-upload" />
+          <span>交卷</span>
+        </div>
+      </div>
+
+      <!-- 手机端答题卡（底部弹出） -->
+      <el-drawer
+        title="答题卡"
+        :visible.sync="cardVisible"
+        direction="btt"
+        size="55%"
+        append-to-body
+      >
+        <div class="exam-sheet">
+          <div class="exam-card__grid exam-card__grid--sheet">
+            <span
+              v-for="(q, index) in paper.questions"
+              :key="q.seq"
+              class="exam-card__item"
+              :class="{ 'is-done': isAnswered(q.seq), 'is-current': index === currentIndex }"
+              @click="goTo(index); cardVisible = false"
+            >{{ index + 1 }}</span>
+          </div>
+          <div class="exam-card__legend">已答 {{ answeredCount }} / {{ paper.questions.length }}，点题号跳转</div>
+          <el-button type="danger" size="small" style="width: 100%" @click="handleSubmit()">交卷</el-button>
+        </div>
+      </el-drawer>
     </div>
 
     <!-- ============ 3. 成绩 ============ -->
@@ -255,6 +306,8 @@ import {
   startExam,
   answerExamQuestion,
   submitExam,
+  getExamPaper,
+  getExamResult,
   listExamTemplates,
   getExamTemplate,
   saveExamTemplate
@@ -278,7 +331,8 @@ export default {
       templates: [],
       selectedTemplateId: undefined,
       detailVisible: false,
-      detailItem: {}
+      detailItem: {},
+      cardVisible: false
     }
   },
   computed: {
@@ -320,6 +374,11 @@ export default {
     if (templateId) {
       this.selectedTemplateId = Number(templateId)
       this.onTemplateChange(this.selectedTemplateId)
+    }
+    // 从考试记录"继续考试"进入
+    const paperId = this.$route.query.paperId
+    if (paperId) {
+      this.resumePaper(Number(paperId))
     }
   },
   beforeDestroy() {
@@ -432,6 +491,38 @@ export default {
           this.handleSubmit(true)
         }
       }, 1000)
+    },
+    /** 续考：拉回试卷与已作答内容（已交卷的直接看成绩） */
+    resumePaper(paperId) {
+      getExamPaper(paperId).then(res => {
+        const data = (res && res.data) || {}
+        if (!data.paperId) {
+          this.$modal.msgError('试卷不存在')
+          return
+        }
+        if (data.status !== 'IN_PROGRESS') {
+          this.result = { ...data, questions: [] }
+          getExamResult(paperId).then(resultRes => {
+            this.result = (resultRes && resultRes.data) || data
+            this.stage = 'RESULT'
+          })
+          return
+        }
+        const answers = {}
+        ;(data.questions || []).forEach(question => {
+          if (question.userAnswer) {
+            answers[question.seq] = question.userAnswer
+          }
+        })
+        this.paper = data
+        this.answers = answers
+        this.currentIndex = 0
+        this.remaining = data.remainingSeconds || 0
+        this.stage = 'EXAM'
+        this.startTimer()
+      }).catch(() => {
+        this.$modal.msgError('试卷加载失败')
+      })
     },
     clearTimer() {
       if (this.timer) {
@@ -782,5 +873,81 @@ export default {
 .exam-detail__section-title {
   font-weight: 600;
   margin-bottom: 6px;
+}
+
+/* 手机端适配：答题卡收进底部弹层，题干占满宽度 */
+.exam-mobile-bar {
+  display: none;
+}
+.exam-sheet {
+  padding: 0 16px 16px;
+}
+
+@media (max-width: 768px) {
+  .exam-taking {
+    display: block;
+  }
+  .exam-taking__side {
+    display: none;
+  }
+  .exam-taking__main {
+    padding: 12px 14px 84px;
+  }
+  .exam-question__title {
+    font-size: 16px;
+    margin: 10px 0 14px;
+  }
+  .exam-option {
+    padding: 11px 12px;
+    margin-bottom: 8px;
+  }
+  .exam-taking__bar {
+    font-size: 13px;
+  }
+  .exam-mobile-bar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #fff;
+    border-top: 1px solid #ebeef5;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+    padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
+    z-index: 2000;
+  }
+  .exam-mobile-bar__item {
+    flex: 1;
+    text-align: center;
+    font-size: 11px;
+    color: #606266;
+  }
+  .exam-mobile-bar__item i {
+    display: block;
+    font-size: 18px;
+    margin-bottom: 2px;
+  }
+  .exam-mobile-bar__item.is-disabled {
+    color: #c0c4cc;
+  }
+  .exam-mobile-bar__item.is-submit {
+    color: #f56c6c;
+  }
+  .exam-card__grid--sheet {
+    gap: 10px;
+  }
+  .exam-card__grid--sheet .exam-card__item {
+    width: 38px;
+    height: 38px;
+    line-height: 38px;
+    font-size: 14px;
+  }
+  .exam-result__summary {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .exam-result__score b {
+    font-size: 34px;
+  }
 }
 </style>
