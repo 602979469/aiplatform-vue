@@ -4,7 +4,7 @@
 export default {
   data() {
     return {
-      isMobile: typeof window !== 'undefined' && window.innerWidth <= 768
+      isMobile: typeof window !== 'undefined' && isMobileEnv()
     }
   },
   mounted() {
@@ -15,7 +15,17 @@ export default {
   },
   methods: {
     handleScreenResize() {
-      this.isMobile = window.innerWidth <= 768
+      this.isMobile = isMobileEnv()
     }
   }
+}
+
+/** 判断移动端环境：窄屏或移动 UA（App WebView 常见 UA 与手机浏览器都覆盖） */
+function isMobileEnv() {
+  if (typeof window === 'undefined') {
+    return false
+  }
+  const ua = navigator.userAgent || ''
+  const mobileUa = /Android|iPhone|iPad|iPod|Mobile|HarmonyOS|MicroMessenger|okhttp|Dalvik/i.test(ua)
+  return mobileUa || window.innerWidth <= 768
 }
