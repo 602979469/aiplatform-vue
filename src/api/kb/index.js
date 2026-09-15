@@ -77,3 +77,81 @@ export function deleteQuestion(id) {
     timeout: 30000
   })
 }
+
+// ==================== 考试中心 ====================
+
+// 开始考试（选模板或快速创建）
+export function startExam(data) {
+  return request({
+    url: '/api/kb/exam/start',
+    method: 'post',
+    data: data,
+    timeout: 60000
+  })
+}
+
+// 续考：取回试卷与已作答内容
+export function getExamPaper(paperId) {
+  return request({
+    url: '/api/kb/exam/paper/' + paperId,
+    method: 'get',
+    timeout: 30000
+  })
+}
+
+// 提交单题作答
+export function answerExamQuestion(paperId, data) {
+  return request({
+    url: '/api/kb/exam/paper/' + paperId + '/answer',
+    method: 'put',
+    data: data,
+    timeout: 30000
+  })
+}
+
+// 交卷判分
+export function submitExam(paperId) {
+  return request({
+    url: '/api/kb/exam/paper/' + paperId + '/submit',
+    method: 'post',
+    timeout: 60000
+  })
+}
+
+// 成绩详情
+export function getExamResult(paperId) {
+  return request({
+    url: '/api/kb/exam/paper/' + paperId + '/result',
+    method: 'get',
+    timeout: 30000
+  })
+}
+
+// 考试记录
+export function listExamHistory(params) {
+  return request({
+    url: '/api/kb/exam/history',
+    method: 'get',
+    params: params,
+    timeout: 30000
+  })
+}
+
+// 错题集
+export function listWrongQuestions(params) {
+  return request({
+    url: '/api/kb/exam/wrong',
+    method: 'get',
+    params: params,
+    timeout: 30000
+  })
+}
+
+// 标记已掌握（移出错题集）
+export function markQuestionMastered(questionId) {
+  return request({
+    url: '/api/kb/exam/wrong/' + questionId + '/mastered',
+    method: 'post',
+    timeout: 30000
+  })
+}
