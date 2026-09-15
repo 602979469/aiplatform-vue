@@ -5,17 +5,18 @@
       <div class="panel">
         <div class="panel-header">
           <span>组卷配置</span>
-          <span class="panel-tip">按知识点抽题，默认排除你已经做对的题</span>
+          <span v-if="appMode" class="panel-tip">选择一套试卷开始</span>
+          <span v-else class="panel-tip">按知识点抽题，默认排除你已经做对的题</span>
         </div>
 
         <el-form :inline="true" size="small" class="exam-config__template">
           <el-form-item label="使用模板">
             <el-select
               v-model="selectedTemplateId"
-              placeholder="不选则临时选题"
+              :placeholder="appMode ? '请选择试卷' : '不选则临时选题'"
               clearable
               filterable
-              style="width: 280px"
+              :style="{ width: appMode ? '100%' : '280px' }"
               @change="onTemplateChange"
             >
               <el-option
@@ -26,12 +27,47 @@
               />
             </el-select>
           </el-form-item>
-          <el-form-item>
+          <el-form-item v-if="!appMode">
             <el-button type="text" icon="el-icon-setting" @click="$router.push('/exam/template')">管理模板</el-button>
           </el-form-item>
         </el-form>
 
-        <el-table :data="rules" size="small" border>
+        <!-- App 端：只展示试卷摘要，不允许改知识点 -->
+        <div v-if="appMode" class="exam-app">
+          <template v-if="selectedTemplate">
+            <div class="exam-app__name">{{ selectedTemplate.name }}</div>
+            <div class="exam-app__stats">
+              <div class="exam-app__stat">
+                <b>{{ selectedTemplate.questionCount }}</b>
+                <span>题</span>
+              </div>
+              <div class="exam-app__stat">
+                <b>{{ appEstimatedMinutes }}</b>
+                <span>分钟</span>
+              </div>
+              <div class="exam-app__stat">
+                <b>{{ selectedTemplate.mode === 'REVIEW' ? '复习' : '新题' }}</b>
+                <span>{{ selectedTemplate.mode === 'REVIEW' ? '含做对过的题' : '只出没做过的' }}</span>
+              </div>
+            </div>
+            <div v-if="selectedTemplate.excludeMastered === 1 && selectedTemplate.mode !== 'REVIEW'" class="exam-app__tip">
+              <i class="el-icon-info" /> 已自动跳过你做对过的题目
+            </div>
+            <div v-if="selectedTemplate.description" class="exam-app__desc">{{ selectedTemplate.description }}</div>
+          </template>
+          <el-empty v-else description="请选择一套试卷" :image-size="70" />
+
+          <el-button
+            type="primary"
+            class="exam-app__start"
+            icon="el-icon-video-play"
+            :disabled="!selectedTemplateId"
+            :loading="starting"
+            @click="startExam"
+          >开始考试</el-button>
+        </div>
+
+        <el-table v-else :data="rules" size="small" border>
           <el-table-column label="分类" width="200">
             <template slot-scope="scope">
               <el-select
@@ -74,9 +110,9 @@
           </el-table-column>
         </el-table>
 
-        <el-button type="text" icon="el-icon-plus" size="mini" @click="addRule">添加知识点</el-button>
+        <el-button v-if="!appMode" type="text" icon="el-icon-plus" size="mini" @click="addRule">添加知识点</el-button>
 
-        <el-form :inline="true" size="small" class="exam-config__form">
+        <el-form v-if="!appMode" :inline="true" size="small" class="exam-config__form">
           <el-form-item label="每题限时">
             <el-input-number v-model="form.perQuestionSeconds" :min="10" :max="600" :step="10" size="mini" /> 秒
           </el-form-item>
@@ -91,7 +127,7 @@
           </el-form-item>
         </el-form>
 
-        <div class="exam-config__summary">
+        <div v-if="!appMode" class="exam-config__summary">
           共 <b>{{ totalCount }}</b> 题 · 预计 <b>{{ Math.ceil(totalCount * form.perQuestionSeconds / 60) }}</b> 分钟
           <el-button type="text" size="small" icon="el-icon-collection-tag" @click="saveAsTemplate">存为模板</el-button>
           <el-button type="primary" icon="el-icon-video-play" :loading="starting" @click="startExam">开始考试</el-button>
@@ -345,6 +381,7 @@ export default {
       result: { questions: [] },
       templates: [],
       selectedTemplateId: undefined,
+      selectedTemplate: null,
       detailVisible: false,
       detailItem: {},
       cardVisible: false
@@ -377,6 +414,19 @@ export default {
       } catch (e) {
         return []
       }
+    },
+    /** App 端（移动端或来源 app）：只允许选模板开考，不能临时选题 */
+    appMode() {
+      return this.isMobile || this.$route.query.from === 'app'
+    },
+    /** App 端展示的预计时长（分钟） */
+    appEstimatedMinutes() {
+      if (!this.selectedTemplate) {
+        return 0
+      }
+      const total = (this.selectedTemplate.questionCount || 0) *
+        (this.selectedTemplate.perQuestionSeconds || 60)
+      return Math.max(1, Math.round(total / 60))
     }
   },
   created() {
@@ -425,10 +475,12 @@ export default {
     /** 选中模板后回填组卷配置 */
     onTemplateChange(templateId) {
       if (!templateId) {
+        this.selectedTemplate = null
         return
       }
       getExamTemplate(templateId).then(res => {
         const data = (res && res.data) || {}
+        this.selectedTemplate = data
         this.rules = (data.rules || []).map(rule => ({
           category: rule.category,
           subtopic: rule.subtopic,
@@ -475,6 +527,10 @@ export default {
       if (this.selectedTemplateId) {
         payload.templateId = this.selectedTemplateId
       } else {
+        if (this.appMode) {
+          this.$modal.msgWarning('请先选择一套试卷')
+          return
+        }
         const rules = this.rules.filter(rule => rule.category && rule.count > 0)
         if (!rules.length) {
           this.$modal.msgWarning('请至少选择一个知识点')
@@ -685,6 +741,52 @@ export default {
 }
 .exam-config__template {
   margin-bottom: 12px;
+}
+
+/* App 端试卷摘要 */
+.exam-app {
+  padding: 8px 4px 4px;
+}
+.exam-app__name {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.exam-app__stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.exam-app__stat {
+  flex: 1;
+  background: #f7f9fc;
+  border-radius: 8px;
+  padding: 12px 8px;
+  text-align: center;
+}
+.exam-app__stat b {
+  display: block;
+  font-size: 20px;
+  color: #303133;
+  line-height: 1.4;
+}
+.exam-app__stat span {
+  font-size: 12px;
+  color: #909399;
+}
+.exam-app__tip {
+  font-size: 12px;
+  color: #67c23a;
+  margin-bottom: 8px;
+}
+.exam-app__desc {
+  font-size: 13px;
+  color: #909399;
+  margin-bottom: 12px;
+}
+.exam-app__start {
+  width: 100%;
+  margin-top: 8px;
 }
 .exam-config__summary {
   margin-top: 8px;
