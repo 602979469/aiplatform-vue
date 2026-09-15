@@ -23,6 +23,37 @@
         >{{ word }}</el-tag>
       </div>
 
+      <div class="kb-search__row">
+        <span class="kb-search__label">题型：</span>
+        <el-tag
+          v-for="b in facets.question_type"
+          :key="b.key"
+          size="small"
+          :effect="filters.questionTypes.includes(b.key) ? 'dark' : 'plain'"
+          class="kb-search__tag"
+          @click.native="toggleType(b.key)"
+        >{{ b.key }} ({{ b.count }})</el-tag>
+        <span class="kb-search__label" style="margin-left: 12px">技术方向：</span>
+        <el-select
+          v-model="filters.categories"
+          multiple
+          collapse-tags
+          clearable
+          size="small"
+          placeholder="全部"
+          style="width: 300px"
+          @change="doSearch()"
+        >
+          <el-option
+            v-for="b in facets.category"
+            :key="b.key"
+            :label="b.key + ' (' + b.count + ')'"
+            :value="b.key"
+          />
+        </el-select>
+        <el-button v-if="hasFilter" type="text" size="mini" @click="clearFilters">清除筛选</el-button>
+      </div>
+
       <div v-if="history.length" class="kb-search__row">
         <span class="kb-search__label">搜索历史：</span>
         <el-tag
@@ -130,6 +161,8 @@ export default {
       loading: false,
       searched: false,
       pagerLimit: 1000,
+      facets: {},
+      filters: { questionTypes: [], categories: [] },
       detailVisible: false,
       detailLoading: false,
       detail: {},
@@ -141,6 +174,9 @@ export default {
   computed: {
     pagerTotal() {
       return Math.min(this.total, this.pagerLimit)
+    },
+    hasFilter() {
+      return this.filters.questionTypes.length > 0 || this.filters.categories.length > 0
     }
   },
   created() {
@@ -186,12 +222,15 @@ export default {
       const start = Date.now()
       searchQuestions({
         keyword: kw,
+        questionType: this.filters.questionTypes.join(','),
+        category: this.filters.categories.join(','),
         pageNum: this.queryParams.pageNum,
         pageSize: this.queryParams.pageSize
       }).then(res => {
         const data = (res && res.data) || {}
         this.list = data.list || []
         this.total = data.total || 0
+        this.facets = data.facets || {}
         this.cost = Date.now() - start
       }).finally(() => {
         this.loading = false
@@ -209,6 +248,19 @@ export default {
     clearHistory() {
       this.history = []
       localStorage.removeItem(HISTORY_KEY)
+    },
+    toggleType(key) {
+      const idx = this.filters.questionTypes.indexOf(key)
+      if (idx >= 0) {
+        this.filters.questionTypes.splice(idx, 1)
+      } else {
+        this.filters.questionTypes.push(key)
+      }
+      this.doSearch()
+    },
+    clearFilters() {
+      this.filters = { questionTypes: [], categories: [] }
+      this.doSearch()
     },
     isAnswer(key) {
       if (!this.detail.answer) {
