@@ -183,9 +183,8 @@
             <el-button
               size="small"
               type="primary"
-              :disabled="currentIndex >= paper.questions.length - 1"
-              @click="goTo(currentIndex + 1)"
-            >下一题</el-button>
+              @click="handleNextOrSubmit()"
+            >{{ isLastQuestion ? '交卷' : '下一题' }}</el-button>
           </div>
         </div>
       </div>
@@ -225,11 +224,11 @@
         </div>
         <div
           class="exam-mobile-bar__item"
-          :class="{ 'is-disabled': currentIndex >= paper.questions.length - 1 }"
-          @click="goTo(currentIndex + 1)"
+          :class="{ 'is-submit': isLastQuestion }"
+          @click="handleNextOrSubmit()"
         >
-          <i class="el-icon-arrow-right" />
-          <span>下一题</span>
+          <i :class="isLastQuestion ? 'el-icon-upload' : 'el-icon-arrow-right'" />
+          <span>{{ isLastQuestion ? '交卷' : '下一题' }}</span>
         </div>
         <div class="exam-mobile-bar__item is-submit" @click="handleSubmit()">
           <i class="el-icon-upload" />
@@ -259,6 +258,40 @@
           <el-button type="danger" size="small" style="width: 100%" @click="handleSubmit()">交卷</el-button>
         </div>
       </el-drawer>
+
+      <!-- 交卷二次确认（未作答会列出题号，可点击跳转） -->
+      <el-dialog
+        title="确认交卷"
+        :visible.sync="submitVisible"
+        width="420px"
+        append-to-body
+        custom-class="exam-submit-dialog"
+      >
+        <div class="exam-submit">
+          <template v-if="unansweredSeqs.length">
+            <div class="exam-submit__warn">
+              <i class="el-icon-warning-outline" />
+              还有 <b>{{ unansweredSeqs.length }}</b> 题未作答
+            </div>
+            <div class="exam-submit__seqs">
+              <span
+                v-for="seq in unansweredSeqs"
+                :key="seq"
+                class="exam-submit__seq"
+                @click="jumpToSeq(seq)"
+              >{{ seq }}</span>
+            </div>
+            <div class="exam-submit__tip">点击题号可直接跳过去作答</div>
+          </template>
+          <div v-else class="exam-submit__ok">
+            <i class="el-icon-success" /> 全部题目已作答，确认交卷？
+          </div>
+        </div>
+        <div slot="footer">
+          <el-button @click="submitVisible = false">继续答题</el-button>
+          <el-button type="primary" @click="doSubmit">确认交卷</el-button>
+        </div>
+      </el-dialog>
     </div>
 
     <!-- ============ 3. 成绩 ============ -->
@@ -267,6 +300,7 @@
         <div class="panel-header">
           <span>{{ result.title }} · 成绩</span>
           <span>
+            <el-button v-if="fromHistory" type="text" size="mini" @click="backToHistory">返回考试记录</el-button>
             <el-button type="text" size="mini" @click="backToConfig">再考一次</el-button>
             <el-button type="text" size="mini" @click="$router.push('/exam/wrong')">去错题集</el-button>
           </span>
@@ -387,7 +421,8 @@ export default {
       selectedTemplate: null,
       detailVisible: false,
       detailItem: {},
-      cardVisible: false
+      cardVisible: false,
+      submitVisible: false
     }
   },
   computed: {
@@ -417,6 +452,20 @@ export default {
       } catch (e) {
         return []
       }
+    },
+    /** 是否最后一题（按钮渲染为"交卷"） */
+    isLastQuestion() {
+      return this.currentIndex >= (this.paper.questions.length - 1)
+    },
+    /** 是否从考试记录页跳进来（用于显示"返回考试记录"） */
+    fromHistory() {
+      return !!this.$route.query.paperId
+    },
+    /** 未作答题号（交卷确认时提示，可点击跳转） */
+    unansweredSeqs() {
+      return this.paper.questions
+        .filter(question => !(this.answers[question.seq] || '').trim())
+        .map(question => question.seq)
     },
     /** App 端（移动端或来源 app）：只允许选模板开考，不能临时选题 */
     appMode() {
@@ -678,26 +727,48 @@ export default {
       return !!(this.answers[seq] || '').trim()
     },
     handleSubmit(auto) {
-      const submit = () => {
-        this.saveAnswer(this.current.seq)
-        this.clearTimer()
-        submitExam(this.paper.paperId).then(res => {
-          this.result = res.data
-          this.stage = 'RESULT'
-        })
-      }
       if (auto) {
-        submit()
+        // 时间到自动交卷，不再二次确认
+        this.doSubmit()
         return
       }
-      const unanswered = this.paper.questions.length - this.answeredCount
-      this.$modal.confirm(unanswered > 0
-        ? '还有 ' + unanswered + ' 题未作答，确认交卷？'
-        : '确认交卷？').then(submit).catch(() => {})
+      // 先落库当前题，再弹二次确认（未作答会列题号）
+      this.saveAnswer(this.current.seq)
+      this.submitVisible = true
+    },
+    /** 确认交卷 */
+    doSubmit() {
+      this.submitVisible = false
+      this.saveAnswer(this.current.seq)
+      this.clearTimer()
+      submitExam(this.paper.paperId).then(res => {
+        this.result = res.data
+        this.stage = 'RESULT'
+      })
+    },
+    /** 最后一题渲染为"交卷"，其余为"下一题" */
+    handleNextOrSubmit() {
+      if (this.isLastQuestion) {
+        this.handleSubmit()
+      } else {
+        this.goTo(this.currentIndex + 1)
+      }
+    },
+    /** 交卷确认里点击未答题号 → 跳过去作答 */
+    jumpToSeq(seq) {
+      const index = this.paper.questions.findIndex(question => question.seq === seq)
+      if (index >= 0) {
+        this.submitVisible = false
+        this.goTo(index)
+      }
     },
     backToConfig() {
       this.stage = 'CONFIG'
       this.result = { questions: [] }
+    },
+    /** 从成绩页返回考试记录 */
+    backToHistory() {
+      this.$router.push('/exam/history')
     },
     /** 成绩页：点开单题详情（与题库搜索详情一致） */
     openResultDetail(item) {
