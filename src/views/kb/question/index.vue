@@ -1,26 +1,28 @@
 <template>
   <div class="app-container kb-search">
     <div class="kb-search__box">
-      <el-input
-        v-model="keyword"
-        size="large"
-        clearable
-        placeholder="搜索 Java 面试题 / 知识点，例如：线程池、JVM 垃圾回收、缓存穿透"
-        @keyup.enter.native="doSearch()"
-      >
-        <el-button slot="append" icon="el-icon-search" @click="doSearch()">搜索</el-button>
-      </el-input>
-
-      <div class="kb-search__row">
-        <span class="kb-search__label">热门搜索：</span>
-        <el-tag
-          v-for="word in hotWords"
-          :key="word"
-          size="small"
-          effect="plain"
-          class="kb-search__tag"
-          @click.native="doSearch(word)"
-        >{{ word }}</el-tag>
+      <div class="kb-search__bar">
+        <el-select
+          v-model="keyword"
+          class="kb-search__select"
+          filterable
+          allow-create
+          default-first-option
+          clearable
+          size="large"
+          placeholder="搜索 Java 面试题 / 知识点，例如：线程池、JVM 垃圾回收"
+          @change="doSearch(keyword)"
+          @keyup.enter.native="doSearch(keyword)"
+        >
+          <el-option-group label="热门搜索">
+            <el-option v-for="w in hotWords" :key="'hot-' + w" :label="w" :value="w" />
+          </el-option-group>
+          <el-option-group v-if="history.length" label="搜索历史">
+            <el-option v-for="w in history" :key="'his-' + w" :label="w" :value="w" />
+          </el-option-group>
+        </el-select>
+        <el-button type="primary" icon="el-icon-search" size="large" @click="doSearch()">搜索</el-button>
+        <el-button v-if="history.length" type="text" @click="clearHistory">清空历史</el-button>
       </div>
 
       <div class="kb-search__row">
@@ -54,19 +56,6 @@
         <el-button v-if="hasFilter" type="text" size="mini" @click="clearFilters">清除筛选</el-button>
       </div>
 
-      <div v-if="history.length" class="kb-search__row">
-        <span class="kb-search__label">搜索历史：</span>
-        <el-tag
-          v-for="word in history"
-          :key="word"
-          size="mini"
-          type="info"
-          effect="plain"
-          class="kb-search__tag"
-          @click.native="doSearch(word)"
-        >{{ word }}</el-tag>
-        <el-button type="text" size="mini" @click="clearHistory">清空历史</el-button>
-      </div>
     </div>
 
     <div v-loading="loading" class="kb-search__result">
@@ -143,7 +132,7 @@
 
 <script>
 import { marked } from 'marked'
-import { searchQuestions, getQuestionDetail } from '@/api/kb'
+import { searchQuestions, getQuestionDetail, getQuestionFacets } from '@/api/kb'
 
 const HISTORY_KEY = 'kb_search_history'
 const HISTORY_MAX = 10
@@ -180,6 +169,7 @@ export default {
     }
   },
   created() {
+    this.loadFacets()
     try {
       this.history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
     } catch (e) {
@@ -187,6 +177,11 @@ export default {
     }
   },
   methods: {
+    loadFacets() {
+      getQuestionFacets().then(res => {
+        this.facets = (res && res.data) || {}
+      })
+    },
     splitTags(tags) {
       return tags ? tags.split(',').filter(Boolean) : []
     },
@@ -276,6 +271,18 @@ export default {
 .kb-search__box {
   max-width: 900px;
   margin: 0 auto 18px;
+}
+.kb-search__bar {
+  display: flex;
+  align-items: center;
+}
+.kb-search__select {
+  flex: 1;
+  margin-right: 10px;
+}
+.kb-search__select >>> .el-input__inner {
+  height: 40px;
+  line-height: 40px;
 }
 .kb-search__row {
   margin-top: 12px;

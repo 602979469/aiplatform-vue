@@ -19,6 +19,15 @@ export function getQuestionDetail(id) {
   })
 }
 
+// 题库筛选项（题型/技术方向/知识点/难度 + 数量）
+export function getQuestionFacets() {
+  return request({
+    url: '/api/kb/question/facets',
+    method: 'get',
+    timeout: 30000
+  })
+}
+
 // ==================== 题库管理（MySQL，物理删除） ====================
 
 // 题目分页（关键词 + 分类/子主题/题型/难度筛选）
