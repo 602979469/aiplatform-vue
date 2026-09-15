@@ -86,8 +86,23 @@
       <div v-loading="detailLoading" class="kb-detail">
         <div class="kb-detail__meta">
           <el-tag v-if="detail.category" size="mini" effect="plain">{{ detail.category }}</el-tag>
+          <el-tag v-if="detail.docType" size="mini" type="danger" effect="plain">{{ detail.docType }}</el-tag>
           <el-tag v-if="detail.difficulty" size="mini" type="warning" effect="plain">{{ detail.difficulty }}</el-tag>
           <el-tag v-for="tag in splitTags(detail.tags)" :key="tag" size="mini" type="success" effect="plain">{{ tag }}</el-tag>
+        </div>
+        <div v-if="detailOptions.length" class="kb-detail__options">
+          <div
+            v-for="opt in detailOptions"
+            :key="opt.key"
+            class="kb-detail__option"
+            :class="{ 'is-answer': isAnswer(opt.key) }"
+          >
+            <b>{{ opt.key }}.</b> {{ opt.text }}
+            <el-tag v-if="isAnswer(opt.key)" size="mini" type="success">正确</el-tag>
+          </div>
+        </div>
+        <div v-if="detail.answer" class="kb-detail__answer">
+          正确答案：<b>{{ detail.answer }}</b>
         </div>
         <div class="kb-detail__content" v-html="detailHtml"></div>
       </div>
@@ -119,6 +134,7 @@ export default {
       detailLoading: false,
       detail: {},
       detailHtml: '',
+      detailOptions: [],
       queryParams: { pageNum: 1, pageSize: 10 }
     }
   },
@@ -146,6 +162,11 @@ export default {
       getQuestionDetail(item.id).then(res => {
         this.detail = (res && res.data) || {}
         this.detailHtml = marked.parse(this.detail.content || '')
+        try {
+          this.detailOptions = this.detail.options ? JSON.parse(this.detail.options) : []
+        } catch (e) {
+          this.detailOptions = []
+        }
       }).finally(() => {
         this.detailLoading = false
       })
@@ -188,6 +209,12 @@ export default {
     clearHistory() {
       this.history = []
       localStorage.removeItem(HISTORY_KEY)
+    },
+    isAnswer(key) {
+      if (!this.detail.answer) {
+        return false
+      }
+      return String(this.detail.answer).toUpperCase().split(',').map(s => s.trim()).includes(String(key).toUpperCase())
     }
   }
 }
@@ -273,6 +300,26 @@ export default {
   line-height: 1.8;
   color: #303133;
   word-break: break-word;
+}
+.kb-detail__options {
+  margin-bottom: 12px;
+}
+.kb-detail__option {
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 20px;
+}
+.kb-detail__option.is-answer {
+  border-color: #67c23a;
+  background: #f0f9eb;
+}
+.kb-detail__answer {
+  margin-bottom: 12px;
+  color: #67c23a;
+  font-size: 14px;
 }
 .kb-detail__content img {
   max-width: 100%;
