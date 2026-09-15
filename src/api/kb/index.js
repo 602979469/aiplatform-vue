@@ -155,3 +155,42 @@ export function markQuestionMastered(questionId) {
     timeout: 30000
   })
 }
+
+// ==================== 试卷模板（配置管理） ====================
+
+// 模板列表（全局已发布 + 我的个人模板）
+export function listExamTemplates() {
+  return request({
+    url: '/api/kb/exam/template/list',
+    method: 'get',
+    timeout: 30000
+  })
+}
+
+// 模板详情（含知识点规则）
+export function getExamTemplate(id) {
+  return request({
+    url: '/api/kb/exam/template/' + id,
+    method: 'get',
+    timeout: 30000
+  })
+}
+
+// 保存模板（新增/修改）
+export function saveExamTemplate(data) {
+  return request({
+    url: '/api/kb/exam/template',
+    method: 'post',
+    data: data,
+    timeout: 30000
+  })
+}
+
+// 删除模板
+export function deleteExamTemplate(id) {
+  return request({
+    url: '/api/kb/exam/template/' + id,
+    method: 'delete',
+    timeout: 30000
+  })
+}

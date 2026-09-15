@@ -8,6 +8,29 @@
           <span class="panel-tip">按知识点抽题，默认排除你已经做对的题</span>
         </div>
 
+        <el-form :inline="true" size="small" class="exam-config__template">
+          <el-form-item label="使用模板">
+            <el-select
+              v-model="selectedTemplateId"
+              placeholder="不选则临时选题"
+              clearable
+              filterable
+              style="width: 280px"
+              @change="onTemplateChange"
+            >
+              <el-option
+                v-for="item in templates"
+                :key="item.id"
+                :label="item.name + '（' + item.questionCount + ' 题）'"
+                :value="item.id"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="text" icon="el-icon-setting" @click="$router.push('/exam/template')">管理模板</el-button>
+          </el-form-item>
+        </el-form>
+
         <el-table :data="rules" size="small" border>
           <el-table-column label="分类" width="200">
             <template slot-scope="scope">
@@ -70,6 +93,7 @@
 
         <div class="exam-config__summary">
           共 <b>{{ totalCount }}</b> 题 · 预计 <b>{{ Math.ceil(totalCount * form.perQuestionSeconds / 60) }}</b> 分钟
+          <el-button type="text" size="small" icon="el-icon-collection-tag" @click="saveAsTemplate">存为模板</el-button>
           <el-button type="primary" icon="el-icon-video-play" :loading="starting" @click="startExam">开始考试</el-button>
         </div>
       </div>
@@ -182,15 +206,59 @@
             <span>正确答案：<b class="is-ok">{{ item.answer }}</b></span>
           </div>
           <div v-if="item.explanation" class="exam-result__explanation" v-html="renderMarkdown(item.explanation)" />
+          <div class="exam-result__more">
+            <el-button type="text" size="mini" icon="el-icon-view" @click="openResultDetail(item)">查看完整题目与解析</el-button>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- 题目详情（与题库搜索详情一致：选项高亮 + Markdown） -->
+    <el-drawer :title="detailItem.title" :visible.sync="detailVisible" direction="rtl" size="52%" append-to-body>
+      <div class="exam-detail">
+        <div class="exam-detail__meta">
+          <el-tag v-if="detailItem.category" size="mini" effect="plain">{{ detailItem.category }}</el-tag>
+          <el-tag v-if="detailItem.subtopic" size="mini" effect="plain">{{ detailItem.subtopic }}</el-tag>
+          <el-tag v-if="detailItem.questionType" size="mini" type="danger" effect="plain">{{ detailItem.questionType }}</el-tag>
+          <el-tag v-if="detailItem.isCorrect === 1" size="mini" type="success">答对</el-tag>
+          <el-tag v-else-if="detailItem.isCorrect === 0" size="mini" type="danger">答错</el-tag>
+        </div>
+        <div v-if="detailOptions.length" class="exam-detail__options">
+          <div
+            v-for="opt in detailOptions"
+            :key="opt.key"
+            class="exam-detail__option"
+            :class="{ 'is-answer': isAnswerKey(opt.key) }"
+          >
+            <b>{{ opt.key }}.</b> {{ opt.text }}
+            <el-tag v-if="isAnswerKey(opt.key)" size="mini" type="success">正确答案</el-tag>
+          </div>
+        </div>
+        <div class="exam-detail__answers">
+          <div>我的答案：<b :class="detailItem.isCorrect === 1 ? 'is-ok' : 'is-bad'">{{ detailItem.userAnswer || '未作答' }}</b></div>
+          <div>正确答案：<b class="is-ok">{{ detailItem.answer }}</b></div>
+        </div>
+        <div v-if="detailItem.content" class="exam-detail__content" v-html="renderMarkdown(detailItem.content)" />
+        <div v-if="detailItem.explanation" class="exam-detail__explanation">
+          <div class="exam-detail__section-title">解析</div>
+          <div v-html="renderMarkdown(detailItem.explanation)" />
+        </div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script>
 import { marked } from 'marked'
-import { getQuestionMeta, startExam, answerExamQuestion, submitExam } from '@/api/kb'
+import {
+  getQuestionMeta,
+  startExam,
+  answerExamQuestion,
+  submitExam,
+  listExamTemplates,
+  getExamTemplate,
+  saveExamTemplate
+} from '@/api/kb'
 
 export default {
   name: 'KbExamStart',
@@ -206,7 +274,11 @@ export default {
       currentIndex: 0,
       remaining: 0,
       timer: null,
-      result: { questions: [] }
+      result: { questions: [] },
+      templates: [],
+      selectedTemplateId: undefined,
+      detailVisible: false,
+      detailItem: {}
     }
   },
   computed: {
@@ -229,12 +301,26 @@ export default {
     progressPercent() {
       const total = this.paper.questions.length || 1
       return Math.round(((this.currentIndex + 1) / total) * 100)
+    },
+    detailOptions() {
+      try {
+        return this.detailItem.options ? JSON.parse(this.detailItem.options) : []
+      } catch (e) {
+        return []
+      }
     }
   },
   created() {
     getQuestionMeta().then(res => {
       this.meta = (res && res.data) || { categories: [] }
     })
+    this.loadTemplates()
+    // 支持从配置管理页"用它开考"直接带模板进入
+    const templateId = this.$route.query.templateId
+    if (templateId) {
+      this.selectedTemplateId = Number(templateId)
+      this.onTemplateChange(this.selectedTemplateId)
+    }
   },
   beforeDestroy() {
     this.clearTimer()
@@ -256,21 +342,74 @@ export default {
     onRuleCategoryChange(row) {
       row.subtopic = undefined
     },
-    startExam() {
-      const rules = this.rules.filter(rule => rule.category && rule.count > 0)
-      if (!rules.length) {
-        this.$modal.msgWarning('请至少选择一个知识点')
+    /** 模板列表（全局已发布 + 我的个人模板） */
+    loadTemplates() {
+      listExamTemplates().then(res => {
+        this.templates = (res && res.data) || []
+      })
+    },
+    /** 选中模板后回填组卷配置 */
+    onTemplateChange(templateId) {
+      if (!templateId) {
         return
       }
-      this.starting = true
-      startExam({
+      getExamTemplate(templateId).then(res => {
+        const data = (res && res.data) || {}
+        this.rules = (data.rules || []).map(rule => ({
+          category: rule.category,
+          subtopic: rule.subtopic,
+          count: rule.count
+        }))
+        if (!this.rules.length) {
+          this.addRule()
+        }
+        this.form.perQuestionSeconds = data.perQuestionSeconds || 60
+        this.form.mode = data.mode || 'NORMAL'
+      })
+    },
+    /** 把当前组卷配置存成个人模板 */
+    saveAsTemplate() {
+      const rules = this.rules.filter(rule => rule.category && rule.count > 0)
+      if (!rules.length) {
+        this.$modal.msgWarning('请先配置知识点')
+        return
+      }
+      this.$prompt('给这个模板起个名字', '存为模板', { inputValue: this.form.title || '' }).then(({ value }) => {
+        return saveExamTemplate({
+          name: value,
+          scope: 'PERSONAL',
+          status: 'PUBLISHED',
+          mode: this.form.mode,
+          perQuestionSeconds: this.form.perQuestionSeconds,
+          excludeMastered: this.form.mode === 'REVIEW' ? 0 : 1,
+          objectiveOnly: 1,
+          rules: rules
+        })
+      }).then(() => {
+        this.$modal.msgSuccess('模板已保存')
+        this.loadTemplates()
+      }).catch(() => {})
+    },
+    startExam() {
+      const payload = {
         title: this.form.title,
         mode: this.form.mode,
         perQuestionSeconds: this.form.perQuestionSeconds,
         excludeMastered: this.form.mode === 'REVIEW' ? 0 : 1,
-        objectiveOnly: 1,
-        rules: rules
-      }).then(res => {
+        objectiveOnly: 1
+      }
+      if (this.selectedTemplateId) {
+        payload.templateId = this.selectedTemplateId
+      } else {
+        const rules = this.rules.filter(rule => rule.category && rule.count > 0)
+        if (!rules.length) {
+          this.$modal.msgWarning('请至少选择一个知识点')
+          return
+        }
+        payload.rules = rules
+      }
+      this.starting = true
+      startExam(payload).then(res => {
         this.paper = res.data
         this.answers = {}
         this.currentIndex = 0
@@ -362,6 +501,15 @@ export default {
       this.stage = 'CONFIG'
       this.result = { questions: [] }
     },
+    /** 成绩页：点开单题详情（与题库搜索详情一致） */
+    openResultDetail(item) {
+      this.detailItem = item
+      this.detailVisible = true
+    },
+    isAnswerKey(key) {
+      const answer = this.detailItem.answer || ''
+      return answer.split(',').map(value => value.trim().toUpperCase()).indexOf(key) >= 0
+    },
     formatDuration(seconds) {
       const value = Math.max(seconds || 0, 0)
       const minutes = Math.floor(value / 60)
@@ -400,6 +548,9 @@ export default {
 }
 .exam-config__form {
   margin-top: 16px;
+}
+.exam-config__template {
+  margin-bottom: 12px;
 }
 .exam-config__summary {
   margin-top: 8px;
@@ -586,5 +737,50 @@ export default {
   font-size: 13px;
   line-height: 1.7;
   color: #606266;
+}
+.exam-result__more {
+  margin: 6px 0 0 30px;
+}
+
+/* 题目详情抽屉（与题库搜索详情一致） */
+.exam-detail {
+  padding: 0 20px 20px;
+}
+.exam-detail__meta .el-tag {
+  margin-right: 6px;
+}
+.exam-detail__options {
+  margin-top: 14px;
+}
+.exam-detail__option {
+  padding: 8px 10px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.exam-detail__option.is-answer {
+  border-color: #67c23a;
+  background: #f0f9eb;
+}
+.exam-detail__answers {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #606266;
+}
+.exam-detail__answers div {
+  margin-bottom: 4px;
+}
+.exam-detail__content,
+.exam-detail__explanation {
+  margin-top: 16px;
+  font-size: 14px;
+  line-height: 1.75;
+  word-break: break-word;
+}
+.exam-detail__section-title {
+  font-weight: 600;
+  margin-bottom: 6px;
 }
 </style>
