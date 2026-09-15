@@ -105,6 +105,8 @@ export function answerExamQuestion(paperId, data) {
     url: '/api/kb/exam/paper/' + paperId + '/answer',
     method: 'put',
     data: data,
+    // 按题号幂等覆盖，允许连续提交（不受"1 秒内重复请求"限制）
+    headers: { repeatSubmit: false },
     timeout: 30000
   })
 }

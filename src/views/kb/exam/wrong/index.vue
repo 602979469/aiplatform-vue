@@ -13,7 +13,11 @@
     </el-form>
 
     <el-table ref="table" v-loading="loading" :data="list" border size="small">
-      <el-table-column prop="title" label="题干" min-width="320" show-overflow-tooltip />
+      <el-table-column label="题干" min-width="320" show-overflow-tooltip>
+        <template slot-scope="scope">
+          <a class="wrong-link" @click="openDetail(scope.row)">{{ scope.row.title }}</a>
+        </template>
+      </el-table-column>
       <el-table-column prop="category" label="分类" width="130" show-overflow-tooltip />
       <el-table-column prop="subtopic" label="知识点" width="130" show-overflow-tooltip />
       <el-table-column prop="questionType" label="题型" width="80" align="center" />
@@ -42,7 +46,13 @@
     />
 
     <!-- 错题详情：与题库搜索详情一致（选项高亮 + Markdown 正文/解析） -->
-    <el-drawer :title="detail.title" :visible.sync="detailVisible" direction="rtl" size="52%" append-to-body>
+    <el-drawer
+      :title="detail.title"
+      :visible.sync="detailVisible"
+      :direction="isMobile ? 'btt' : 'rtl'"
+      :size="isMobile ? '88%' : '52%'"
+      append-to-body
+    >
       <div v-loading="detailLoading" class="wrong-detail">
         <div class="wrong-detail__meta">
           <el-tag v-if="detail.category" size="mini" effect="plain">{{ detail.category }}</el-tag>
@@ -79,9 +89,11 @@
 <script>
 import { marked } from 'marked'
 import { listWrongQuestions, markQuestionMastered, getQuestionMeta, getQuestionDetail } from '@/api/kb'
+import responsive from '@/mixins/responsive'
 
 export default {
   name: 'KbExamWrong',
+  mixins: [responsive],
   data() {
     return {
       loading: false,
@@ -210,5 +222,9 @@ export default {
   font-size: 14px;
   line-height: 1.75;
   word-break: break-word;
+}
+.wrong-link {
+  color: #409eff;
+  cursor: pointer;
 }
 </style>

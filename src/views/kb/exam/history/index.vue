@@ -48,7 +48,13 @@
       @pagination="getList"
     />
 
-    <el-drawer :title="result.title" :visible.sync="resultVisible" direction="rtl" size="55%" append-to-body>
+    <el-drawer
+      :title="result.title"
+      :visible.sync="resultVisible"
+      :direction="isMobile ? 'btt' : 'rtl'"
+      :size="isMobile ? '92%' : '55%'"
+      append-to-body
+    >
       <div v-loading="resultLoading" class="exam-result">
         <div class="exam-result__summary">
           <div class="exam-result__score"><b>{{ result.score }}</b><span>/ {{ result.totalScore }}</span></div>
@@ -81,9 +87,11 @@
 <script>
 import { marked } from 'marked'
 import { listExamHistory, getExamResult, deleteExamPaper } from '@/api/kb'
+import responsive from '@/mixins/responsive'
 
 export default {
   name: 'KbExamHistory',
+  mixins: [responsive],
   data() {
     return {
       loading: false,

@@ -244,7 +244,12 @@
           </div>
         </div>
 
-        <div v-for="item in result.questions" :key="item.seq" class="exam-result__item">
+        <div
+          v-for="item in result.questions"
+          :key="item.seq"
+          class="exam-result__item is-clickable"
+          @click="openResultDetail(item)"
+        >
           <div class="exam-result__head">
             <span class="exam-result__seq">{{ item.seq }}</span>
             <span class="exam-result__title">{{ item.title }}</span>
@@ -258,14 +263,20 @@
           </div>
           <div v-if="item.explanation" class="exam-result__explanation" v-html="renderMarkdown(item.explanation)" />
           <div class="exam-result__more">
-            <el-button type="text" size="mini" icon="el-icon-view" @click="openResultDetail(item)">查看完整题目与解析</el-button>
+            <i class="el-icon-view" /> 点击本题查看完整解析
           </div>
         </div>
       </div>
     </div>
 
     <!-- 题目详情（与题库搜索详情一致：选项高亮 + Markdown） -->
-    <el-drawer :title="detailItem.title" :visible.sync="detailVisible" direction="rtl" size="52%" append-to-body>
+    <el-drawer
+      :title="detailItem.title"
+      :visible.sync="detailVisible"
+      :direction="isMobile ? 'btt' : 'rtl'"
+      :size="isMobile ? '88%' : '52%'"
+      append-to-body
+    >
       <div class="exam-detail">
         <div class="exam-detail__meta">
           <el-tag v-if="detailItem.category" size="mini" effect="plain">{{ detailItem.category }}</el-tag>
@@ -312,9 +323,11 @@ import {
   getExamTemplate,
   saveExamTemplate
 } from '@/api/kb'
+import responsive from '@/mixins/responsive'
 
 export default {
   name: 'KbExamStart',
+  mixins: [responsive],
   data() {
     return {
       stage: 'CONFIG',
@@ -324,6 +337,8 @@ export default {
       starting: false,
       paper: { questions: [] },
       answers: {},
+      // 已提交到服务端的答案快照：用于判断"新题/做过的题"，并避免重复提交
+      submittedAnswers: {},
       currentIndex: 0,
       remaining: 0,
       timer: null,
@@ -471,6 +486,7 @@ export default {
       startExam(payload).then(res => {
         this.paper = res.data
         this.answers = {}
+        this.submittedAnswers = {}
         this.currentIndex = 0
         this.remaining = this.paper.remainingSeconds || this.paper.timeLimitSeconds || 0
         this.stage = 'EXAM'
@@ -509,13 +525,16 @@ export default {
           return
         }
         const answers = {}
+        const submitted = {}
         ;(data.questions || []).forEach(question => {
           if (question.userAnswer) {
             answers[question.seq] = question.userAnswer
+            submitted[question.seq] = question.userAnswer
           }
         })
         this.paper = data
         this.answers = answers
+        this.submittedAnswers = submitted
         this.currentIndex = 0
         this.remaining = data.remainingSeconds || 0
         this.stage = 'EXAM'
@@ -534,8 +553,15 @@ export default {
       const value = this.answers[this.current.seq] || ''
       return value.split(',').indexOf(key) >= 0
     },
+    /**
+     * 选项点击：
+     * 1) 新题（没作答过）非多选 → 提交并自动跳下一题；
+     * 2) 做过的题非多选 → 只提交新答案，不翻页；
+     * 3) 多选 → 每点一次提交一次，不翻页。
+     */
     toggleOption(key) {
       const seq = this.current.seq
+      const wasSubmitted = this.submittedAnswers[seq] !== undefined
       if (this.current.questionType === '多选') {
         const list = (this.answers[seq] || '').split(',').filter(Boolean)
         const index = list.indexOf(key)
@@ -545,19 +571,36 @@ export default {
           list.push(key)
         }
         this.answers = { ...this.answers, [seq]: list.sort().join(',') }
+        this.saveAnswer(seq)
+        return
       } else {
         this.answers = { ...this.answers, [seq]: key }
       }
       this.saveAnswer(seq)
+      // 只有"新题"才自动进入下一题；改做过的答案保持当前页
+      if (!wasSubmitted && this.currentIndex < this.paper.questions.length - 1) {
+        this.currentIndex += 1
+      }
     },
+    /** 提交单题：值没变就不重复提交（避免触发前端的重复提交拦截） */
     saveAnswer(seq) {
       if (!this.paper.paperId) {
         return
       }
+      const value = this.answers[seq] || ''
+      if (this.submittedAnswers[seq] === value) {
+        return
+      }
+      if (!value && this.submittedAnswers[seq] === undefined) {
+        // 从未作答过、且当前也没选任何选项 → 不产生无意义的空提交
+        return
+      }
       answerExamQuestion(this.paper.paperId, {
         seq: seq,
-        userAnswer: this.answers[seq] || '',
+        userAnswer: value,
         costSeconds: this.form.perQuestionSeconds
+      }).then(() => {
+        this.$set(this.submittedAnswers, seq, value)
       })
     },
     goTo(index) {
@@ -831,6 +874,16 @@ export default {
 }
 .exam-result__more {
   margin: 6px 0 0 30px;
+  font-size: 12px;
+  color: #c0c4cc;
+}
+.exam-result__item.is-clickable {
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.exam-result__item.is-clickable:hover {
+  background: #fafbfc;
 }
 
 /* 题目详情抽屉（与题库搜索详情一致） */
