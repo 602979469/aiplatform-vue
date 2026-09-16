@@ -132,6 +132,7 @@
 
         <div v-if="!appMode" class="exam-config__summary">
           共 <b>{{ totalCount }}</b> 题 · 预计 <b>{{ Math.ceil(totalCount * form.perQuestionSeconds / 60) }}</b> 分钟
+          <span v-if="ratioPreview" class="exam-config__ratio">题型按 5:2:1 自动配比（{{ ratioPreview }}）</span>
           <el-button type="text" size="small" icon="el-icon-collection-tag" @click="saveAsTemplate">存为模板</el-button>
           <el-button type="primary" icon="el-icon-video-play" :loading="starting" @click="startExam">开始考试</el-button>
         </div>
@@ -328,11 +329,18 @@
             <span class="exam-result__title">{{ item.title }}</span>
             <el-tag v-if="item.isCorrect === 1" size="mini" type="success">答对</el-tag>
             <el-tag v-else-if="item.isCorrect === 0" size="mini" type="danger">答错</el-tag>
-            <el-tag v-else size="mini" type="info">解答题（自评）</el-tag>
+            <el-tag v-else size="mini" type="info">解答题（待判分）</el-tag>
+            <span class="exam-result__score-tag">
+              得分 <b>{{ item.actualScore === null || item.actualScore === undefined ? '-' : item.actualScore }}</b>
+              / {{ item.score }}
+            </span>
           </div>
           <div class="exam-result__answers">
             <span>我的答案：<b :class="item.isCorrect === 1 ? 'is-ok' : 'is-bad'">{{ item.userAnswer || '未作答' }}</b></span>
             <span>正确答案：<b class="is-ok">{{ item.answer }}</b></span>
+          </div>
+          <div v-if="item.aiComment" class="exam-result__ai">
+            <i class="el-icon-magic-stick" /> AI 判分评语：{{ item.aiComment }}
           </div>
           <div v-if="item.explanation" class="exam-result__explanation" v-html="renderMarkdown(item.explanation)" />
           <div class="exam-result__more">
@@ -456,6 +464,17 @@ export default {
     /** 是否最后一题（按钮渲染为"交卷"） */
     isLastQuestion() {
       return this.currentIndex >= (this.paper.questions.length - 1)
+    },
+    /** 组卷配比预览（与后端一致：选择 5 : 问答 2 : 解答 1，每类至少 1 题） */
+    ratioPreview() {
+      const total = this.totalCount || 0
+      if (!total) {
+        return ''
+      }
+      const essay = Math.max(1, Math.round(total / 8))
+      const qa = Math.max(1, Math.round(total * 2 / 8))
+      const select = Math.max(1, total - essay - qa)
+      return '选择 ' + select + ' · 问答 ' + qa + ' · 解答 ' + essay
     },
     /** 是否从考试记录页跳进来（用于显示"返回考试记录"） */
     fromHistory() {
@@ -912,6 +931,11 @@ export default {
 .exam-config__summary .el-button {
   margin-left: 16px;
 }
+.exam-config__ratio {
+  margin-left: 12px;
+  font-size: 12px;
+  color: #909399;
+}
 
 /* 答题 */
 .exam-taking {
@@ -1094,6 +1118,24 @@ export default {
   margin: 6px 0 0 30px;
   font-size: 12px;
   color: #c0c4cc;
+}
+.exam-result__score-tag {
+  font-size: 12px;
+  color: #606266;
+}
+.exam-result__score-tag b {
+  color: #409eff;
+  font-size: 14px;
+}
+.exam-result__ai {
+  margin: 8px 0 0 30px;
+  padding: 8px 10px;
+  background: #f4f8ff;
+  border-left: 3px solid #409eff;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #606266;
 }
 .exam-result__item.is-clickable {
   cursor: pointer;
