@@ -33,7 +33,7 @@
         <el-checkbox-group v-model="selectedIds" class="report-pick__items">
           <el-checkbox v-for="item in group.items" :key="item.id" :label="item.id">
             <span class="report-pick__name">{{ item.typeName }} · {{ item.productName }}</span>
-            <span class="report-pick__budget">{{ item.budgetText }}</span>
+            <span class="report-pick__budget">{{ item.budgetText || '待填预算' }}</span>
           </el-checkbox>
         </el-checkbox-group>
       </div>
@@ -87,7 +87,7 @@
                 </td>
                 <td>{{ item.productName }}</td>
                 <td class="report-table__num">{{ item.quantity }}</td>
-                <td class="report-table__num">{{ item.budgetText }}</td>
+                <td class="report-table__num">{{ item.budgetText || '待定' }}</td>
                 <td class="report-table__num">{{ item.installFee ? '￥' + money(item.installFee) : '-' }}</td>
                 <td class="report-table__num">{{ totalLabel(item) }}</td>
                 <td class="report-table__remark">{{ item.remark }}</td>
@@ -112,6 +112,7 @@
         </table>
         <p class="report-summary__note">
           说明：金额为「单价区间 × 数量 + 安装费」的估算值，最终以实际采购价为准。
+          <span v-if="report.pendingCount">还有 {{ report.pendingCount }} 项尚未填写预算，未计入以上合计。</span>
         </p>
       </div>
     </div>
@@ -195,6 +196,9 @@ export default {
     },
     /** 单价区间 × 数量 + 安装费 */
     itemRange(item) {
+      if (!item.budgetText || (item.budgetMin === null && item.budgetMax === null)) {
+        return null
+      }
       const quantity = Number(item.quantity || 1)
       const installFee = Number(item.installFee || 0)
       return {
@@ -204,6 +208,9 @@ export default {
     },
     totalLabel(item) {
       const range = this.itemRange(item)
+      if (!range) {
+        return '待定'
+      }
       return range.min === range.max
         ? '￥' + this.money(range.min)
         : '￥' + this.money(range.min) + ' ~ ￥' + this.money(range.max)
@@ -217,6 +224,7 @@ export default {
       const selected = this.items.filter(item => this.selectedIds.includes(item.id))
       const groupMap = {}
       const groups = []
+      let pendingCount = 0
       selected.forEach(item => {
         let group = groupMap[item.bigTypeCode]
         if (!group) {
@@ -239,16 +247,21 @@ export default {
         }
         const range = this.itemRange(item)
         child.items.push(item)
-        child.subtotalMin += range.min
-        child.subtotalMax += range.max
-        group.subtotalMin += range.min
-        group.subtotalMax += range.max
+        if (range) {
+          child.subtotalMin += range.min
+          child.subtotalMax += range.max
+          group.subtotalMin += range.min
+          group.subtotalMax += range.max
+        } else {
+          pendingCount += 1
+        }
       })
       this.report = {
         name: this.reportName || '家庭装修采购预算报告',
         version: this.reportVersion || 'V1.0',
         generatedAt: new Date().toLocaleString('zh-CN'),
         itemCount: selected.length,
+        pendingCount: pendingCount,
         groups: groups,
         totalMin: groups.reduce((sum, group) => sum + group.subtotalMin, 0),
         totalMax: groups.reduce((sum, group) => sum + group.subtotalMax, 0)

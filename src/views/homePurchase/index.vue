@@ -1,46 +1,85 @@
 <template>
-  <div class="app-container purchase-page" :class="{ 'purchase-page--mobile': isMobile }">
-    <!-- ============ 移动端：搜索 + 卡片流 ============ -->
+  <div class="hp" :class="{ 'hp--mobile': isMobile }">
+    <!-- ==================== 手机端（客户端风格） ==================== -->
     <template v-if="isMobile">
-      <div class="purchase-mobile-bar">
-        <el-input v-model="query.productName" size="small" placeholder="搜索产品名称" clearable @keyup.enter.native="handleQuery">
-          <el-button slot="append" icon="el-icon-search" @click="handleQuery" />
-        </el-input>
-        <el-select v-model="query.bigTypeCode" size="small" placeholder="全部大类" clearable @change="handleBigTypeChange">
-          <el-option v-for="group in types" :key="group.code" :label="group.icon + ' ' + group.name" :value="group.code" />
-        </el-select>
-      </div>
-
-      <div class="purchase-cards">
-        <div v-for="item in list" :key="item.id" class="purchase-card" @click="handleEdit(item)">
-          <div class="purchase-card__head">
-            <span class="purchase-card__icon">{{ typeIcon(item) }}</span>
-            <div class="purchase-card__title">
-              <div class="purchase-card__name">{{ item.productName }}</div>
-              <div class="purchase-card__sub">{{ item.bigTypeName }} · {{ item.typeName }}</div>
-            </div>
-            <div class="purchase-card__budget">{{ item.budgetText }}</div>
+      <div class="hp-hero">
+        <div class="hp-hero__title">我的家装清单</div>
+        <div class="hp-hero__sub">{{ heroSub }}</div>
+        <div class="hp-hero__stats">
+          <div class="hp-stat">
+            <div class="hp-stat__num">{{ total }}</div>
+            <div class="hp-stat__label">已录入</div>
           </div>
-          <div v-if="item.images && item.images.length" class="purchase-card__thumbs">
-            <img v-for="img in item.images.slice(0, 4)" :key="img.id" :src="imagePreviewUrl(img.fileId)" alt="参考图" />
-            <span v-if="item.images.length > 4" class="purchase-card__more">+{{ item.images.length - 4 }}</span>
+          <div class="hp-stat">
+            <div class="hp-stat__num">{{ filledCount }}</div>
+            <div class="hp-stat__label">已填预算</div>
           </div>
-          <div class="purchase-card__foot">
-            <span>数量 {{ item.quantity }}</span>
-            <span v-if="item.installFee">安装费 ¥{{ item.installFee }}</span>
-            <span v-if="item.remark" class="purchase-card__remark">{{ item.remark }}</span>
+          <div class="hp-stat">
+            <div class="hp-stat__num">{{ imageCount }}</div>
+            <div class="hp-stat__label">参考图片</div>
           </div>
         </div>
-        <div v-if="!loading && !list.length" class="purchase-empty">还没有采购项，点右下角「+」开始添加</div>
       </div>
 
-      <div class="purchase-fab" @click="handleAdd">+</div>
-      <div v-if="total > list.length" class="purchase-loadmore" @click="loadMore">加载更多（{{ list.length }}/{{ total }}）</div>
+      <div class="hp-search">
+        <i class="el-icon-search" />
+        <input v-model="query.productName" placeholder="搜家具名称" @keyup.enter="handleQuery">
+        <span v-if="query.productName" class="hp-search__clear" @click="clearSearch">×</span>
+      </div>
+
+      <div class="hp-chips">
+        <div class="hp-chip" :class="{ 'is-active': !query.bigTypeCode }" @click="filterGroup(undefined)">全部</div>
+        <div
+          v-for="group in types"
+          :key="group.code"
+          class="hp-chip"
+          :class="{ 'is-active': query.bigTypeCode === group.code }"
+          @click="filterGroup(group.code)"
+        >{{ group.icon }} {{ group.name }}</div>
+      </div>
+
+      <div v-if="loading && !list.length" class="hp-loading">正在加载…</div>
+
+      <div class="hp-list">
+        <div v-for="item in list" :key="item.id" class="hp-card" @click="openEdit(item)">
+          <div class="hp-card__top">
+            <div class="hp-card__icon">{{ typeIconFor(item) }}</div>
+            <div class="hp-card__info">
+              <div class="hp-card__name">{{ item.productName }}</div>
+              <div class="hp-card__type">{{ item.bigTypeName }} · {{ item.typeName }}</div>
+            </div>
+            <div class="hp-card__arrow">›</div>
+          </div>
+          <div v-if="item.images && item.images.length" class="hp-card__photos">
+            <img v-for="img in item.images.slice(0, 4)" :key="img.id" :src="imagePreviewUrl(img.fileId)" alt="">
+            <span v-if="item.images.length > 4" class="hp-card__more">+{{ item.images.length - 4 }}</span>
+          </div>
+          <div class="hp-card__bottom">
+            <span v-if="item.budgetText" class="hp-tag hp-tag--money">￥{{ item.budgetText }}</span>
+            <span v-else class="hp-tag hp-tag--todo">待填预算</span>
+            <span v-if="item.quantity > 1" class="hp-tag">×{{ item.quantity }}</span>
+            <span v-if="item.installFee" class="hp-tag">安装费 ￥{{ item.installFee }}</span>
+            <span v-if="item.remark" class="hp-card__remark">{{ item.remark }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="!loading && !list.length" class="hp-empty">
+        <div class="hp-empty__icon">🛋️</div>
+        <div class="hp-empty__title">还没有家具，先从第一件开始吧</div>
+        <div class="hp-empty__desc">点下面的按钮添加，图片和预算可以之后再补</div>
+      </div>
+
+      <div v-if="list.length && total > list.length" class="hp-more" @click="loadMore">加载更多（{{ list.length }}/{{ total }}）</div>
+
+      <div class="hp-bottom">
+        <button class="hp-bottom__btn" @click="openAdd">＋ 添加家具</button>
+      </div>
     </template>
 
-    <!-- ============ 桌面端：筛选 + 表格 ============ -->
+    <!-- ==================== 电脑端（保留表格） ==================== -->
     <template v-else>
-      <el-form :inline="true" size="small" class="purchase-page__filter">
+      <el-form :inline="true" size="small" class="hp-filter">
         <el-form-item label="大类">
           <el-select v-model="query.bigTypeCode" placeholder="全部" clearable style="width: 150px" @change="handleBigTypeChange">
             <el-option v-for="group in types" :key="group.code" :label="group.icon + ' ' + group.name" :value="group.code" />
@@ -62,7 +101,7 @@
 
       <el-row :gutter="10" class="mb8">
         <el-col :span="1.5">
-          <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd">新增采购项</el-button>
+          <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="openAdd">新增采购项</el-button>
         </el-col>
         <el-col :span="1.5">
           <el-button type="warning" plain icon="el-icon-document" size="mini" @click="goReport">生成预算报告</el-button>
@@ -71,23 +110,20 @@
 
       <el-table v-loading="loading" :data="list" border size="small">
         <el-table-column label="类型" width="200">
-          <template slot-scope="scope">
-            <span class="purchase-type">{{ typeIcon(scope.row) }} {{ scope.row.bigTypeName }} · {{ scope.row.typeName }}</span>
-          </template>
+          <template slot-scope="scope">{{ typeIconFor(scope.row) }} {{ scope.row.bigTypeName }} · {{ scope.row.typeName }}</template>
         </el-table-column>
         <el-table-column prop="productName" label="产品名称" min-width="150" show-overflow-tooltip />
         <el-table-column prop="quantity" label="数量" width="70" align="center" />
-        <el-table-column prop="budgetText" label="预算（单件）" width="140" />
-        <el-table-column label="安装费" width="100" align="right">
-          <template slot-scope="scope">{{ scope.row.installFee ? '¥' + scope.row.installFee : '-' }}</template>
+        <el-table-column prop="budgetText" label="预算（单件）" width="140">
+          <template slot-scope="scope">{{ scope.row.budgetText || '待填写' }}</template>
         </el-table-column>
-        <el-table-column label="小计区间" width="180" align="right">
-          <template slot-scope="scope">{{ itemTotalLabel(scope.row) }}</template>
+        <el-table-column label="安装费" width="100" align="right">
+          <template slot-scope="scope">{{ scope.row.installFee ? '￥' + scope.row.installFee : '-' }}</template>
         </el-table-column>
         <el-table-column label="参考图片" width="150">
           <template slot-scope="scope">
-            <div class="purchase-table__thumbs">
-              <img v-for="img in (scope.row.images || []).slice(0, 3)" :key="img.id" :src="imagePreviewUrl(img.fileId)" alt="参考图" />
+            <div class="hp-table-photos">
+              <img v-for="img in (scope.row.images || []).slice(0, 3)" :key="img.id" :src="imagePreviewUrl(img.fileId)" alt="">
               <span v-if="(scope.row.images || []).length > 3">+{{ scope.row.images.length - 3 }}</span>
             </div>
           </template>
@@ -95,8 +131,8 @@
         <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
         <el-table-column label="操作" width="130" align="center">
           <template slot-scope="scope">
-            <el-button type="text" size="mini" icon="el-icon-edit" @click="handleEdit(scope.row)">修改</el-button>
-            <el-button type="text" size="mini" icon="el-icon-delete" @click="handleDelete(scope.row)">删除</el-button>
+            <el-button type="text" size="mini" icon="el-icon-edit" @click="openEdit(scope.row)">修改</el-button>
+            <el-button type="text" size="mini" icon="el-icon-delete" @click="removeItem(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -110,89 +146,141 @@
       />
     </template>
 
-    <!-- ============ 新增 / 修改 ============ -->
-    <el-dialog
-      :title="form.id ? '修改采购项' : '新增采购项'"
-      :visible.sync="dialogVisible"
-      :width="isMobile ? '94%' : '620px'"
-      :fullscreen="isMobile"
-      append-to-body
-      @closed="resetForm"
-    >
-      <el-form ref="form" :model="form" :rules="rules" label-width="86px" size="small">
-        <el-form-item label="大类" prop="bigTypeCode">
-          <el-select v-model="form.bigTypeCode" placeholder="请选择大类" style="width: 100%" @change="handleFormBigTypeChange">
-            <el-option v-for="group in types" :key="group.code" :label="group.icon + ' ' + group.name" :value="group.code" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="类型" prop="typeCode">
-          <el-select v-model="form.typeCode" placeholder="请选择类型" filterable style="width: 100%">
-            <el-option v-for="type in formTypeOptions" :key="type.code" :label="type.icon + ' ' + type.name" :value="type.code" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="产品名称" prop="productName">
-          <el-input v-model="form.productName" placeholder="如 格力 云锦Ⅲ 1.5匹" maxlength="200" />
-        </el-form-item>
-        <el-form-item label="预算" prop="budgetText">
-          <el-input v-model="form.budgetText" placeholder="区间写 800~1200，精确值写 999">
-            <el-button slot="append" icon="el-icon-magic-stick" :loading="recommendLoading" @click="handleRecommend">AI 推荐</el-button>
-          </el-input>
-        </el-form-item>
-        <el-row :gutter="10">
-          <el-col :span="12">
-            <el-form-item label="数量" prop="quantity">
-              <el-input-number v-model="form.quantity" :min="1" :max="999" controls-position="right" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="安装费">
-              <el-input-number v-model="form.installFee" :min="0" :precision="2" controls-position="right" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="参考图片">
-          <el-upload
-            :action="uploadUrl"
-            :headers="uploadHeaders"
-            :data="{ namespace: 'aiplatform' }"
-            list-type="picture-card"
-            :limit="10"
-            :file-list="fileList"
-            :on-success="handleUploadSuccess"
-            :on-error="handleUploadError"
-            :on-exceed="handleUploadExceed"
-            :on-remove="handleUploadRemove"
-            :before-upload="beforeUpload"
-          >
-            <i class="el-icon-plus" />
-          </el-upload>
-          <div class="el-upload__tip">最多 10 张，顺序即报告里的展示顺序；可以先不传，之后回来补。</div>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="2" maxlength="500" placeholder="户型、品牌偏好、尺寸等" />
-        </el-form-item>
-      </el-form>
-      <div slot="footer">
-        <el-button size="small" @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" size="small" :loading="submitting" @click="submitForm">保存</el-button>
-      </div>
-    </el-dialog>
+    <!-- ==================== 添加 / 编辑（手机端底部抽屉，电脑端居中弹层） ==================== -->
+    <div v-if="formVisible" class="hp-mask" @click.self="closeForm">
+      <div class="hp-sheet">
+        <div v-if="isMobile" class="hp-sheet__handle" />
+        <div class="hp-sheet__head">
+          <div class="hp-sheet__title">{{ form.id ? '编辑这件家具' : '添加一件家具' }}</div>
+          <div class="hp-sheet__close" @click="closeForm">×</div>
+        </div>
 
-    <!-- ============ AI 推荐结果 ============ -->
-    <el-dialog title="AI 推荐（经济性好 / 销量高 / 口碑好）" :visible.sync="recommendVisible" :width="isMobile ? '94%' : '680px'" append-to-body>
-      <div v-if="recommendList.length" class="recommend-list">
-        <div v-for="(item, index) in recommendList" :key="index" class="recommend-card">
-          <div class="recommend-card__title">{{ item.name || '推荐 ' + (index + 1) }}</div>
-          <div v-if="item.priceRange" class="recommend-card__price">参考价 ¥{{ item.priceRange }}</div>
-          <div class="recommend-card__reason">{{ item.reason }}</div>
-          <div v-if="item.highlights && item.highlights.length" class="recommend-card__tags">
-            <el-tag v-for="tag in item.highlights" :key="tag" size="mini" type="success">{{ tag }}</el-tag>
+        <div class="hp-sheet__body">
+          <div class="hp-field">
+            <div class="hp-field__label">这件家具属于</div>
+            <div class="hp-groups">
+              <div
+                v-for="group in types"
+                :key="group.code"
+                class="hp-groups__item"
+                :class="{ 'is-active': form.bigTypeCode === group.code }"
+                @click="pickGroup(group)"
+              >{{ group.icon }} {{ group.name }}</div>
+            </div>
+            <div class="hp-types">
+              <div
+                v-for="type in formTypeOptions"
+                :key="type.code"
+                class="hp-types__item"
+                :class="{ 'is-active': form.typeCode === type.code }"
+                @click="pickType(type)"
+              >
+                <span class="hp-types__icon">{{ type.icon }}</span>
+                <span class="hp-types__name">{{ type.name }}</span>
+              </div>
+            </div>
           </div>
-          <el-button v-if="item.name" type="primary" plain size="mini" @click="applySuggestion(item)">用这款</el-button>
+
+          <div class="hp-field">
+            <div class="hp-field__label">想买什么 / 什么牌子型号</div>
+            <div class="hp-ai" @click="askAi">
+              <span class="hp-ai__icon">✨</span>
+              <span class="hp-ai__text">{{ recommendLoading ? 'AI 正在帮你挑…' : '不知道选哪个？让 AI 推荐 3 款' }}</span>
+              <span class="hp-ai__arrow">›</span>
+            </div>
+            <input v-model="form.productName" class="hp-input" placeholder="例如：格力 云锦Ⅲ 1.5 匹空调">
+          </div>
+
+          <div class="hp-field">
+            <div class="hp-field__label">预算 <span class="hp-field__hint">（可以之后再填）</span></div>
+            <div class="hp-quick">
+              <div
+                v-for="quick in budgetQuicks"
+                :key="quick"
+                class="hp-quick__item"
+                :class="{ 'is-active': form.budgetText === quick }"
+                @click="pickBudget(quick)"
+              >{{ quick }}</div>
+            </div>
+            <input v-model="form.budgetText" class="hp-input" placeholder="也可以自己写：800~1200 或 999">
+          </div>
+
+          <div class="hp-field hp-field--row">
+            <div class="hp-field__block">
+              <div class="hp-field__label">数量</div>
+              <div class="hp-stepper">
+                <div class="hp-stepper__btn" @click="stepQuantity(-1)">−</div>
+                <div class="hp-stepper__num">{{ form.quantity || 1 }}</div>
+                <div class="hp-stepper__btn" @click="stepQuantity(1)">＋</div>
+              </div>
+            </div>
+            <div class="hp-field__block">
+              <div class="hp-field__label">安装费</div>
+              <input v-model="form.installFee" class="hp-input hp-input--number" type="number" placeholder="选填">
+            </div>
+          </div>
+
+          <div class="hp-field">
+            <div class="hp-field__label">参考图片 <span class="hp-field__hint">（最多 10 张）</span></div>
+            <div class="hp-photos">
+              <div v-for="(photo, index) in photos" :key="photo.uid" class="hp-photos__item">
+                <img :src="photo.url" alt="">
+                <span class="hp-photos__del" @click.stop="removePhoto(index)">×</span>
+              </div>
+              <el-upload
+                v-if="photos.length < 10"
+                class="hp-photos__add"
+                :action="uploadUrl"
+                :headers="uploadHeaders"
+                :data="{ namespace: 'aiplatform' }"
+                :show-file-list="false"
+                :before-upload="beforeUpload"
+                :on-success="handleUploadSuccess"
+                :on-error="handleUploadError"
+              >
+                <div class="hp-photos__addbox">
+                  <span class="hp-photos__plus">＋</span>
+                  <span class="hp-photos__text">加图</span>
+                </div>
+              </el-upload>
+            </div>
+          </div>
+
+          <div class="hp-field">
+            <div class="hp-field__label">备注 <span class="hp-field__hint">（选填）</span></div>
+            <textarea v-model="form.remark" class="hp-input hp-input--area" rows="2" placeholder="户型、尺寸、品牌偏好…" />
+          </div>
+        </div>
+
+        <div class="hp-sheet__foot">
+          <button v-if="form.id" class="hp-btn hp-btn--danger" @click="removeItem(form)">删除</button>
+          <button class="hp-btn hp-btn--primary" :disabled="saving" @click="submit">{{ saving ? '保存中…' : '保存' }}</button>
         </div>
       </div>
-      <div v-else class="recommend-empty">暂时没有推荐结果</div>
-    </el-dialog>
+    </div>
+
+    <!-- ==================== AI 推荐结果 ==================== -->
+    <div v-if="recommendVisible" class="hp-mask" @click.self="recommendVisible = false">
+      <div class="hp-sheet">
+        <div v-if="isMobile" class="hp-sheet__handle" />
+        <div class="hp-sheet__head">
+          <div class="hp-sheet__title">为你挑了 3 款</div>
+          <div class="hp-sheet__close" @click="recommendVisible = false">×</div>
+        </div>
+        <div class="hp-sheet__body">
+          <div v-for="(item, index) in recommendList" :key="index" class="hp-reco">
+            <div class="hp-reco__rank">推荐 {{ index + 1 }}</div>
+            <div class="hp-reco__name">{{ item.name || '参考建议' }}</div>
+            <div v-if="item.priceRange" class="hp-reco__price">￥{{ item.priceRange }}</div>
+            <div class="hp-reco__reason">{{ item.reason }}</div>
+            <div v-if="item.highlights && item.highlights.length" class="hp-reco__tags">
+              <span v-for="tag in item.highlights" :key="tag" class="hp-tag hp-tag--soft">{{ tag }}</span>
+            </div>
+            <button v-if="item.name" class="hp-btn hp-btn--ghost" @click="applySuggestion(item)">就选这款</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -216,7 +304,7 @@ export default {
   data() {
     return {
       loading: false,
-      submitting: false,
+      saving: false,
       types: [],
       list: [],
       total: 0,
@@ -227,18 +315,13 @@ export default {
         pageNum: 1,
         pageSize: 10
       },
-      dialogVisible: false,
-      fileList: [],
-      form: this.buildEmptyForm(),
-      rules: {
-        bigTypeCode: [{ required: true, message: '请选择大类', trigger: 'change' }],
-        typeCode: [{ required: true, message: '请选择类型', trigger: 'change' }],
-        productName: [{ required: true, message: '请填写产品名称', trigger: 'blur' }],
-        budgetText: [{ required: true, message: '请填写预算', trigger: 'blur' }]
-      },
+      formVisible: false,
+      photos: [],
+      form: this.emptyForm(),
       recommendVisible: false,
       recommendLoading: false,
-      recommendList: []
+      recommendList: [],
+      budgetQuicks: ['1000 以内', '1000~3000', '3000~6000', '6000~10000', '10000 以上']
     }
   },
   computed: {
@@ -255,6 +338,17 @@ export default {
     formTypeOptions() {
       const group = this.types.find(item => item.code === this.form.bigTypeCode)
       return group ? group.children : []
+    },
+    filledCount() {
+      return this.list.filter(item => item.budgetText).length
+    },
+    imageCount() {
+      return this.list.reduce((sum, item) => sum + (item.images ? item.images.length : 0), 0)
+    },
+    heroSub() {
+      return this.filledCount >= this.total && this.total > 0
+        ? '预算都填好啦，随时可以出报告'
+        : '选好家具、填上预算，就能一键出预算报告'
     }
   },
   created() {
@@ -263,7 +357,7 @@ export default {
   },
   methods: {
     imagePreviewUrl,
-    buildEmptyForm() {
+    emptyForm() {
       return {
         id: undefined,
         bigTypeCode: undefined,
@@ -293,17 +387,23 @@ export default {
     },
     loadMore() {
       this.query.pageNum += 1
-      this.loading = true
       pagePurchaseItem(this.query).then(response => {
         const page = response.data || {}
         this.list = this.list.concat(page.dataList || [])
-      }).finally(() => {
-        this.loading = false
       })
     },
     handleQuery() {
       this.query.pageNum = 1
       this.getList()
+    },
+    clearSearch() {
+      this.query.productName = undefined
+      this.handleQuery()
+    },
+    filterGroup(code) {
+      this.query.bigTypeCode = code
+      this.query.typeCode = undefined
+      this.handleQuery()
     },
     resetQuery() {
       this.query = { bigTypeCode: undefined, typeCode: undefined, productName: undefined, pageNum: 1, pageSize: 10 }
@@ -313,10 +413,7 @@ export default {
       this.query.typeCode = undefined
       this.handleQuery()
     },
-    handleFormBigTypeChange() {
-      this.form.typeCode = undefined
-    },
-    typeIcon(row) {
+    typeIconFor(row) {
       const group = this.types.find(item => item.code === row.bigTypeCode)
       if (!group) {
         return '🧾'
@@ -324,22 +421,16 @@ export default {
       const type = (group.children || []).find(item => item.code === row.typeCode)
       return (type && type.icon) || group.icon || '🧾'
     },
-    /** 单件区间 × 数量 + 安装费 */
-    itemTotalLabel(row) {
-      const min = Number(row.budgetMin || 0)
-      const max = Number(row.budgetMax || 0)
-      const quantity = Number(row.quantity || 1)
-      const installFee = Number(row.installFee || 0)
-      const low = min * quantity + installFee
-      const high = max * quantity + installFee
-      return low === high ? '¥' + low : '¥' + low + ' ~ ¥' + high
+    openAdd() {
+      this.form = this.emptyForm()
+      this.photos = []
+      this.recommendList = []
+      if (this.types.length) {
+        this.form.bigTypeCode = this.types[0].code
+      }
+      this.formVisible = true
     },
-    handleAdd() {
-      this.form = this.buildEmptyForm()
-      this.fileList = []
-      this.dialogVisible = true
-    },
-    handleEdit(row) {
+    openEdit(row) {
       this.form = {
         id: row.id,
         bigTypeCode: row.bigTypeCode,
@@ -351,91 +442,110 @@ export default {
         remark: row.remark,
         fileIds: (row.images || []).map(image => image.fileId)
       }
-      this.fileList = (row.images || []).map(image => ({
-        name: '参考图 ' + (image.orderNum + 1),
+      this.photos = (row.images || []).map(image => ({
+        uid: 'image-' + image.id,
         url: imagePreviewUrl(image.fileId),
-        fileId: image.fileId,
-        uid: 'image-' + image.id
+        fileId: image.fileId
       }))
-      this.dialogVisible = true
-    },
-    submitForm() {
-      this.$refs.form.validate(valid => {
-        if (!valid) {
-          return
-        }
-        this.submitting = true
-        const request = this.form.id
-          ? updatePurchaseItem(this.form.id, this.form)
-          : addPurchaseItem(this.form)
-        request.then(() => {
-          this.$modal.msgSuccess(this.form.id ? '修改成功' : '新增成功')
-          this.dialogVisible = false
-          this.getList()
-        }).finally(() => {
-          this.submitting = false
-        })
-      })
-    },
-    handleDelete(row) {
-      this.$modal.confirm('确认删除采购项「' + row.productName + '」？').then(() => {
-        return delPurchaseItem(row.id)
-      }).then(() => {
-        this.$modal.msgSuccess('删除成功')
-        this.getList()
-      }).catch(() => {})
-    },
-    resetForm() {
-      this.form = this.buildEmptyForm()
-      this.fileList = []
       this.recommendList = []
-      if (this.$refs.form) {
-        this.$refs.form.clearValidate()
+      this.formVisible = true
+    },
+    closeForm() {
+      this.formVisible = false
+    },
+    pickGroup(group) {
+      this.form.bigTypeCode = group.code
+      if (!(group.children || []).some(type => type.code === this.form.typeCode)) {
+        this.form.typeCode = undefined
       }
     },
-    /** 上传前限制图片格式与大小 */
+    pickType(type) {
+      this.form.typeCode = type.code
+    },
+    pickBudget(quick) {
+      this.form.budgetText = this.form.budgetText === quick ? undefined : quick
+    },
+    stepQuantity(delta) {
+      const next = (this.form.quantity || 1) + delta
+      this.form.quantity = next < 1 ? 1 : next
+    },
+    submit() {
+      if (!this.form.bigTypeCode || !this.form.typeCode) {
+        this.$modal.msgWarning('先选一下这件家具属于哪一类吧')
+        return
+      }
+      if (!this.form.productName) {
+        this.$modal.msgWarning('写一下想买什么，或者让 AI 帮你推荐')
+        return
+      }
+      this.saving = true
+      const payload = {
+        bigTypeCode: this.form.bigTypeCode,
+        typeCode: this.form.typeCode,
+        productName: this.form.productName,
+        quantity: this.form.quantity || 1,
+        budgetText: this.form.budgetText || undefined,
+        // 空字符串会让后端 BigDecimal 解析失败，必须转成不传
+        installFee: this.form.installFee === '' || this.form.installFee === null ? undefined : this.form.installFee,
+        remark: this.form.remark || undefined,
+        fileIds: this.form.fileIds
+      }
+      const request = this.form.id
+        ? updatePurchaseItem(this.form.id, payload)
+        : addPurchaseItem(payload)
+      request.then(() => {
+        this.$modal.msgSuccess(this.form.id ? '已保存' : '添加成功')
+        this.formVisible = false
+        this.handleQuery()
+      }).finally(() => {
+        this.saving = false
+      })
+    },
+    removeItem(row) {
+      this.$modal.confirm('确认删除「' + row.productName + '」？').then(() => {
+        return delPurchaseItem(row.id)
+      }).then(() => {
+        this.$modal.msgSuccess('已删除')
+        this.formVisible = false
+        this.handleQuery()
+      }).catch(() => {})
+    },
     beforeUpload(file) {
-      const isImage = /image\/(jpeg|jpg|png|gif|webp)/.test(file.type)
-      if (!isImage) {
-        this.$modal.msgError('只能上传图片文件')
+      if (!/image\/(jpeg|jpg|png|gif|webp)/.test(file.type)) {
+        this.$modal.msgError('只能上传图片哦')
         return false
       }
       if (file.size / 1024 / 1024 > 10) {
-        this.$modal.msgError('图片大小不能超过 10MB')
+        this.$modal.msgError('图片不要超过 10MB')
         return false
       }
       return true
     },
-    handleUploadSuccess(response, file, fileList) {
+    handleUploadSuccess(response, file) {
       if (!response || !response.success) {
         this.$modal.msgError((response && response.errorMessage) || '图片上传失败')
-        this.fileList = fileList.filter(item => item.uid !== file.uid)
-        this.syncFileIds(this.fileList)
         return
       }
-      file.fileId = response.data.id
-      file.url = imagePreviewUrl(response.data.id)
-      this.fileList = fileList.map(item => item)
-      this.syncFileIds(this.fileList)
+      this.photos.push({
+        uid: file.uid,
+        url: imagePreviewUrl(response.data.id),
+        fileId: response.data.id
+      })
+      this.syncFileIds()
     },
     handleUploadError() {
-      this.$modal.msgError('图片上传失败')
+      this.$modal.msgError('图片上传失败，再试一次')
     },
-    handleUploadExceed() {
-      this.$modal.msgError('最多上传 10 张图片')
+    removePhoto(index) {
+      this.photos.splice(index, 1)
+      this.syncFileIds()
     },
-    handleUploadRemove(file, fileList) {
-      this.fileList = fileList
-      this.syncFileIds(fileList)
+    syncFileIds() {
+      this.form.fileIds = this.photos.map(photo => photo.fileId).filter(id => !!id)
     },
-    syncFileIds(fileList) {
-      this.form.fileIds = (fileList || [])
-        .map(item => item.fileId || (item.response && item.response.data && item.response.data.id))
-        .filter(id => !!id)
-    },
-    handleRecommend() {
+    askAi() {
       if (!this.form.bigTypeCode || !this.form.typeCode) {
-        this.$modal.msgWarning('请先选择大类与类型')
+        this.$modal.msgWarning('先选一下家具类型，AI 才知道要推荐什么')
         return
       }
       this.recommendLoading = true
@@ -457,7 +567,7 @@ export default {
         this.form.budgetText = item.priceRange
       }
       this.recommendVisible = false
-      this.$modal.msgSuccess('已填入表单，可继续调整')
+      this.$modal.msgSuccess('已经帮你填好了，可以再改')
     },
     goReport() {
       this.$router.push({ path: '/home-purchase/report' })
@@ -467,187 +577,706 @@ export default {
 </script>
 
 <style scoped>
-.purchase-page__filter {
-  margin-bottom: 6px;
+/* ==================== 通用 ==================== */
+.hp-table-photos {
+  display: flex;
+  align-items: center;
 }
 
-.purchase-type {
-  white-space: nowrap;
-}
-
-.purchase-table__thumbs img,
-.purchase-card__thumbs img {
+.hp-table-photos img {
   width: 34px;
   height: 34px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: 6px;
   margin-right: 4px;
   border: 1px solid #ebeef5;
 }
 
-.purchase-table__thumbs {
+.hp-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(23, 20, 18, 0.45);
+  z-index: 2100;
   display: flex;
   align-items: center;
+  justify-content: center;
+  animation: hp-fade 0.18s ease;
 }
 
-/* ---------- 移动端 ---------- */
-.purchase-page--mobile {
-  padding: 10px 10px 70px;
+@keyframes hp-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.purchase-mobile-bar {
+.hp-sheet {
+  background: #fff;
+  border-radius: 18px;
+  width: 620px;
+  max-width: 92vw;
+  max-height: 88vh;
   display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+}
+
+.hp-sheet__handle {
+  width: 42px;
+  height: 4px;
+  background: #e4e0db;
+  border-radius: 4px;
+  margin: 10px auto 0;
+}
+
+.hp-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 10px;
+}
+
+.hp-sheet__title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #2b2b2b;
+}
+
+.hp-sheet__close {
+  font-size: 22px;
+  line-height: 1;
+  color: #b3aca4;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.hp-sheet__body {
+  padding: 4px 20px 8px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hp-sheet__foot {
+  display: flex;
+  gap: 10px;
+  padding: 12px 20px 18px;
+  border-top: 1px solid #f2efeb;
+}
+
+.hp-field {
+  margin-bottom: 18px;
+}
+
+.hp-field--row {
+  display: flex;
+  gap: 16px;
+}
+
+.hp-field__block {
+  flex: 1;
+}
+
+.hp-field__label {
+  font-size: 13px;
+  color: #8a8179;
+  margin-bottom: 8px;
+}
+
+.hp-field__hint {
+  color: #bbb4ac;
+}
+
+.hp-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #eee7e0;
+  background: #fbf9f7;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-size: 15px;
+  color: #2b2b2b;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.hp-input:focus {
+  border-color: #eda267;
+  background: #fff;
+}
+
+.hp-input--area {
+  resize: none;
+  font-family: inherit;
+}
+
+.hp-input--number {
+  width: 100%;
+}
+
+/* 大类 / 小类选择 */
+.hp-groups {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 10px;
+}
+
+.hp-groups__item {
+  flex: none;
+  padding: 7px 14px;
+  border-radius: 20px;
+  background: #f5f2ef;
+  color: #6b635b;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.hp-groups__item.is-active {
+  background: #2b2b2b;
+  color: #fff;
+}
+
+.hp-types {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.hp-types__item {
+  border: 1px solid #f0ebe5;
+  border-radius: 12px;
+  padding: 10px 4px;
+  text-align: center;
+  cursor: pointer;
+  background: #fff;
+}
+
+.hp-types__item.is-active {
+  border-color: #eda267;
+  background: #fff6ef;
+}
+
+.hp-types__icon {
+  display: block;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.hp-types__name {
+  display: block;
+  font-size: 12px;
+  color: #6b635b;
+  margin-top: 2px;
+}
+
+.hp-types__item.is-active .hp-types__name {
+  color: #c96a1e;
+  font-weight: 600;
+}
+
+/* 预算快捷选择 */
+.hp-quick {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 10px;
 }
 
-.purchase-mobile-bar .el-select {
-  width: 130px;
-  flex: none;
-}
-
-.purchase-card {
-  background: #fff;
+.hp-quick__item {
+  padding: 7px 12px;
   border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 10px;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+  background: #f5f2ef;
+  color: #6b635b;
+  font-size: 13px;
+  cursor: pointer;
 }
 
-.purchase-card__head {
+.hp-quick__item.is-active {
+  background: #fff1e5;
+  color: #c96a1e;
+  font-weight: 600;
+}
+
+/* 数量步进 */
+.hp-stepper {
+  display: flex;
+  align-items: center;
+  background: #fbf9f7;
+  border: 1px solid #eee7e0;
+  border-radius: 12px;
+  overflow: hidden;
+  height: 43px;
+}
+
+.hp-stepper__btn {
+  width: 46px;
+  text-align: center;
+  font-size: 20px;
+  color: #6b635b;
+  cursor: pointer;
+  user-select: none;
+}
+
+.hp-stepper__num {
+  flex: 1;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* 图片 */
+.hp-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hp-photos__item {
+  position: relative;
+  width: 78px;
+  height: 78px;
+}
+
+.hp-photos__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.hp-photos__del {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.hp-photos__addbox {
+  width: 78px;
+  height: 78px;
+  border: 1px dashed #e0d8d0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #b3aca4;
+  background: #fcfaf8;
+}
+
+.hp-photos__plus {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.hp-photos__text {
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+/* AI 入口 */
+.hp-ai {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fff3e6, #fff8f2);
+  border: 1px solid #ffe4cb;
+  color: #c96a1e;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.hp-ai__icon {
+  font-size: 16px;
+}
+
+.hp-ai__text {
+  flex: 1;
+}
+
+.hp-ai__arrow {
+  color: #e0b083;
+}
+
+/* 按钮 */
+.hp-btn {
+  flex: 1;
+  border: none;
+  border-radius: 14px;
+  padding: 13px 18px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hp-btn--primary {
+  background: linear-gradient(135deg, #f6a56a, #ec8140);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(236, 129, 64, 0.32);
+}
+
+.hp-btn--danger {
+  flex: none;
+  width: 92px;
+  background: #fdf0ef;
+  color: #d9534f;
+}
+
+.hp-btn--ghost {
+  width: 100%;
+  margin-top: 10px;
+  background: #fff;
+  border: 1px solid #eda267;
+  color: #c96a1e;
+  font-size: 14px;
+  padding: 9px;
+}
+
+/* AI 推荐卡片 */
+.hp-reco {
+  border: 1px solid #f2ece6;
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 12px;
+  background: #fff;
+}
+
+.hp-reco__rank {
+  display: inline-block;
+  font-size: 11px;
+  color: #c96a1e;
+  background: #fff1e5;
+  border-radius: 6px;
+  padding: 2px 8px;
+  margin-bottom: 6px;
+}
+
+.hp-reco__name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2b2b2b;
+}
+
+.hp-reco__price {
+  color: #e0873a;
+  font-size: 14px;
+  margin: 4px 0;
+}
+
+.hp-reco__reason {
+  font-size: 13px;
+  color: #6b635b;
+  line-height: 1.6;
+}
+
+.hp-reco__tags {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ==================== 手机端 ==================== */
+.hp--mobile {
+  background: #f6f4f2;
+  min-height: 100vh;
+  padding-bottom: 92px;
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.hp-hero {
+  background: linear-gradient(150deg, #ffb98a, #ec8140);
+  padding: 26px 20px 22px;
+  color: #fff;
+  border-radius: 0 0 22px 22px;
+}
+
+.hp-hero__title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.hp-hero__sub {
+  font-size: 13px;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+
+.hp-hero__stats {
+  display: flex;
+  margin-top: 18px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 12px 0;
+}
+
+.hp-stat {
+  flex: 1;
+  text-align: center;
+}
+
+.hp-stat__num {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.hp-stat__label {
+  font-size: 12px;
+  opacity: 0.9;
+  margin-top: 2px;
+}
+
+.hp-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -14px 16px 0;
+  background: #fff;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  position: relative;
+  color: #b3aca4;
+}
+
+.hp-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  background: transparent;
+  color: #2b2b2b;
+}
+
+.hp-search__clear {
+  font-size: 18px;
+  color: #c9c2ba;
+  padding: 0 4px;
+}
+
+.hp-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 14px 16px 4px;
+}
+
+.hp-chip {
+  flex: none;
+  padding: 7px 14px;
+  background: #fff;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #6b635b;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.hp-chip.is-active {
+  background: #2b2b2b;
+  color: #fff;
+}
+
+.hp-loading,
+.hp-more {
+  text-align: center;
+  color: #b3aca4;
+  font-size: 13px;
+  padding: 14px 0;
+}
+
+.hp-list {
+  padding: 10px 16px 0;
+}
+
+.hp-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.hp-card__top {
   display: flex;
   align-items: center;
 }
 
-.purchase-card__icon {
+.hp-card__icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: #fff6ef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 24px;
-  margin-right: 8px;
+  margin-right: 12px;
 }
 
-.purchase-card__title {
+.hp-card__info {
   flex: 1;
   min-width: 0;
 }
 
-.purchase-card__name {
-  font-size: 15px;
+.hp-card__name {
+  font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: #2b2b2b;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.purchase-card__sub {
+.hp-card__type {
   font-size: 12px;
-  color: #909399;
-  margin-top: 2px;
+  color: #a49c94;
+  margin-top: 3px;
 }
 
-.purchase-card__budget {
-  font-size: 14px;
-  font-weight: 600;
-  color: #e6a23c;
-  margin-left: 8px;
+.hp-card__arrow {
+  color: #d5cec6;
+  font-size: 22px;
+  padding-left: 6px;
 }
 
-.purchase-card__thumbs {
-  margin-top: 10px;
+.hp-card__photos {
   display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.hp-card__photos img {
+  width: 58px;
+  height: 58px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.hp-card__more {
+  align-self: center;
+  font-size: 12px;
+  color: #a49c94;
+}
+
+.hp-card__bottom {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 8px;
+  margin-top: 12px;
 }
 
-.purchase-card__thumbs img {
-  width: 52px;
-  height: 52px;
-}
-
-.purchase-card__more {
+.hp-card__remark {
+  flex: 1;
+  min-width: 0;
   font-size: 12px;
-  color: #909399;
-}
-
-.purchase-card__foot {
-  margin-top: 8px;
-  display: flex;
-  gap: 12px;
-  font-size: 12px;
-  color: #606266;
-}
-
-.purchase-card__remark {
+  color: #a49c94;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.purchase-empty,
-.purchase-loadmore {
-  text-align: center;
-  color: #909399;
-  font-size: 13px;
-  padding: 16px 0;
+.hp-tag {
+  font-size: 12px;
+  color: #6b635b;
+  background: #f5f2ef;
+  border-radius: 8px;
+  padding: 3px 9px;
 }
 
-.purchase-fab {
-  position: fixed;
-  right: 18px;
-  bottom: 26px;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: #409eff;
-  color: #fff;
-  font-size: 30px;
-  line-height: 50px;
+.hp-tag--money {
+  color: #c96a1e;
+  background: #fff1e5;
+  font-weight: 600;
+}
+
+.hp-tag--todo {
+  color: #b9895f;
+  background: #fdf6ef;
+  border: 1px dashed #f0d9c2;
+}
+
+.hp-tag--soft {
+  color: #7a9b7a;
+  background: #f1f7f1;
+}
+
+.hp-empty {
   text-align: center;
-  box-shadow: 0 3px 10px rgba(64, 158, 255, 0.45);
+  padding: 60px 30px;
+  color: #a49c94;
+}
+
+.hp-empty__icon {
+  font-size: 44px;
+}
+
+.hp-empty__title {
+  font-size: 15px;
+  color: #6b635b;
+  margin-top: 12px;
+}
+
+.hp-empty__desc {
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.hp-bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(246, 244, 242, 0.6), #f6f4f2 40%);
   z-index: 1500;
 }
 
-/* ---------- AI 推荐卡片 ---------- */
-.recommend-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.recommend-card {
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.recommend-card__title {
-  font-size: 15px;
+.hp-bottom__btn {
+  width: 100%;
+  border: none;
+  border-radius: 16px;
+  padding: 15px;
+  font-size: 17px;
   font-weight: 600;
-  color: #303133;
+  color: #fff;
+  background: linear-gradient(135deg, #f6a56a, #ec8140);
+  box-shadow: 0 8px 20px rgba(236, 129, 64, 0.34);
 }
 
-.recommend-card__price {
-  color: #e6a23c;
-  font-size: 13px;
-  margin: 4px 0;
+/* 手机端抽屉 */
+.hp--mobile .hp-mask {
+  align-items: flex-end;
 }
 
-.recommend-card__reason {
-  font-size: 13px;
-  color: #606266;
-  line-height: 1.6;
-  margin-bottom: 6px;
+.hp--mobile .hp-sheet {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 22px 22px 0 0;
+  max-height: 90vh;
 }
 
-.recommend-card__tags {
-  margin-bottom: 8px;
+.hp--mobile .hp-input {
+  font-size: 16px;
+  padding: 13px 14px;
 }
 
-.recommend-card__tags .el-tag {
-  margin-right: 6px;
+.hp--mobile .hp-types {
+  grid-template-columns: repeat(4, 1fr);
 }
 
-.recommend-empty {
-  color: #909399;
-  text-align: center;
-  padding: 20px 0;
+.hp--mobile .hp-sheet__foot {
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
 }
 </style>
