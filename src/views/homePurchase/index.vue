@@ -66,8 +66,8 @@
 
       <div v-if="!loading && !list.length" class="hp-empty">
         <div class="hp-empty__icon">🛋️</div>
-        <div class="hp-empty__title">还没有家具，先从第一件开始吧</div>
-        <div class="hp-empty__desc">点下面的按钮添加，图片和预算可以之后再补</div>
+        <div class="hp-empty__title">清单还没准备好</div>
+        <div class="hp-empty__desc">等设计师在电脑端把家具录进来，你在这里填预算就行</div>
       </div>
 
       <div v-if="list.length && total > list.length" class="hp-more" @click="loadMore">加载更多（{{ list.length }}/{{ total }}）</div>
@@ -151,12 +151,22 @@
       <div class="hp-sheet">
         <div v-if="isMobile" class="hp-sheet__handle" />
         <div class="hp-sheet__head">
-          <div class="hp-sheet__title">{{ form.id ? '编辑这件家具' : '添加一件家具' }}</div>
+          <div class="hp-sheet__title">{{ sheetTitle }}</div>
           <div class="hp-sheet__close" @click="closeForm">×</div>
         </div>
 
         <div class="hp-sheet__body">
-          <div class="hp-field">
+          <!-- 手机端：这件是什么由设计师定好，只读展示，不让客户改 -->
+          <div v-if="isMobile && form.id" class="hp-ro">
+            <div class="hp-ro__icon">{{ typeIconFor(form) }}</div>
+            <div class="hp-ro__info">
+              <div class="hp-ro__name">{{ form.productName }}</div>
+              <div class="hp-ro__type">{{ form.bigTypeName }} · {{ form.typeName }}</div>
+            </div>
+          </div>
+
+          <!-- 电脑端：类型可选 -->
+          <div v-if="!isMobile" class="hp-field">
             <div class="hp-field__label">这件家具属于</div>
             <div class="hp-groups">
               <div
@@ -181,18 +191,9 @@
             </div>
           </div>
 
+          <!-- 预算：手机端的核心操作，放在最前面 -->
           <div class="hp-field">
-            <div class="hp-field__label">想买什么 / 什么牌子型号</div>
-            <div class="hp-ai" @click="askAi">
-              <span class="hp-ai__icon">✨</span>
-              <span class="hp-ai__text">{{ recommendLoading ? 'AI 正在帮你挑…' : '不知道选哪个？让 AI 推荐 3 款' }}</span>
-              <span class="hp-ai__arrow">›</span>
-            </div>
-            <input v-model="form.productName" class="hp-input" placeholder="例如：格力 云锦Ⅲ 1.5 匹空调">
-          </div>
-
-          <div class="hp-field">
-            <div class="hp-field__label">预算 <span class="hp-field__hint">（可以之后再填）</span></div>
+            <div class="hp-field__label">大概想花多少钱 <span class="hp-field__hint">（写区间或一个数都行）</span></div>
             <div class="hp-quick">
               <div
                 v-for="quick in budgetQuicks"
@@ -202,10 +203,22 @@
                 @click="pickBudget(quick)"
               >{{ quick }}</div>
             </div>
-            <input v-model="form.budgetText" class="hp-input" placeholder="也可以自己写：800~1200 或 999">
+            <input v-model="form.budgetText" class="hp-input" placeholder="例如 3000~6000，或 4999">
           </div>
 
-          <div class="hp-field hp-field--row">
+          <div class="hp-field">
+            <div class="hp-field__label">想买什么 / 什么牌子型号</div>
+            <!-- AI 推荐需要知道类型，手机端新增的家具还没归类，先不显示 -->
+            <div v-if="!isMobile || form.id" class="hp-ai" @click="askAi">
+              <span class="hp-ai__icon">✨</span>
+              <span class="hp-ai__text">{{ recommendLoading ? 'AI 正在帮你挑…' : '不知道选哪个？让 AI 推荐 3 款' }}</span>
+              <span class="hp-ai__arrow">›</span>
+            </div>
+            <input v-model="form.productName" class="hp-input" placeholder="例如：格力 云锦Ⅲ 1.5 匹空调">
+          </div>
+
+          <!-- 数量 / 安装费：只在电脑端出现，手机端客户不填 -->
+          <div v-if="!isMobile" class="hp-field hp-field--row">
             <div class="hp-field__block">
               <div class="hp-field__label">数量</div>
               <div class="hp-stepper">
@@ -349,6 +362,17 @@ export default {
       return this.filledCount >= this.total && this.total > 0
         ? '预算都填好啦，随时可以出报告'
         : '选好家具、填上预算，就能一键出预算报告'
+    },
+    sheetTitle() {
+      if (this.form.id) {
+        return this.isMobile ? '填写预算' : '编辑这件家具'
+      }
+      return this.isMobile ? '添加家具' : '添加一件家具'
+    },
+    /** 手机端不让客户选类型：新增的家具先落到「待分类」，由设计师在电脑端归类 */
+    pendingType() {
+      const group = this.types.find(item => item.code === 'pending')
+      return group && group.children && group.children.length ? { group: group, type: group.children[0] } : null
     }
   },
   created() {
@@ -425,7 +449,8 @@ export default {
       this.form = this.emptyForm()
       this.photos = []
       this.recommendList = []
-      if (this.types.length) {
+      // 电脑端默认落到第一个大类，手机端留空（提交时落到待分类）
+      if (!this.isMobile && this.types.length) {
         this.form.bigTypeCode = this.types[0].code
       }
       this.formVisible = true
@@ -434,7 +459,9 @@ export default {
       this.form = {
         id: row.id,
         bigTypeCode: row.bigTypeCode,
+        bigTypeName: row.bigTypeName,
         typeCode: row.typeCode,
+        typeName: row.typeName,
         productName: row.productName,
         quantity: row.quantity || 1,
         budgetText: row.budgetText,
@@ -470,18 +497,30 @@ export default {
       this.form.quantity = next < 1 ? 1 : next
     },
     submit() {
-      if (!this.form.bigTypeCode || !this.form.typeCode) {
-        this.$modal.msgWarning('先选一下这件家具属于哪一类吧')
-        return
-      }
       if (!this.form.productName) {
         this.$modal.msgWarning('写一下想买什么，或者让 AI 帮你推荐')
         return
       }
+      // 手机端不选类型：新家具先落到「待分类」，设计师之后在电脑端归类
+      let bigTypeCode = this.form.bigTypeCode
+      let typeCode = this.form.typeCode
+      if (!typeCode && this.isMobile) {
+        const fallback = this.pendingType
+        if (!fallback) {
+          this.$modal.msgWarning('类型配置里缺少「待分类」，请让设计师在电脑端补一条')
+          return
+        }
+        bigTypeCode = fallback.group.code
+        typeCode = fallback.type.code
+      }
+      if (!bigTypeCode || !typeCode) {
+        this.$modal.msgWarning('先选一下这件家具属于哪一类吧')
+        return
+      }
       this.saving = true
       const payload = {
-        bigTypeCode: this.form.bigTypeCode,
-        typeCode: this.form.typeCode,
+        bigTypeCode: bigTypeCode,
+        typeCode: typeCode,
         productName: this.form.productName,
         quantity: this.form.quantity || 1,
         budgetText: this.form.budgetText || undefined,
@@ -883,6 +922,47 @@ export default {
 }
 
 /* AI 入口 */
+.hp-ro {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  background: #faf7f4;
+  border-radius: 14px;
+}
+
+.hp-ro__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+
+.hp-ro__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.hp-ro__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #2b2b2b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hp-ro__type {
+  font-size: 12px;
+  color: #a49c94;
+  margin-top: 3px;
+}
+
 .hp-ai {
   display: flex;
   align-items: center;
