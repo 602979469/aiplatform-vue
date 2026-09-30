@@ -75,6 +75,13 @@ export const constantRoutes = [
     component: () => import('@/views/error/401'),
     hidden: true
   },
+  // App / 手机浏览器全屏入口（不带后台框架），与 /home-purchase/list 共用同一组件
+  {
+    path: '/app-purchase',
+    component: () => import('@/views/homePurchase/index'),
+    name: 'AppPurchase',
+    hidden: true
+  },
   {
     path: '',
     component: Layout,
