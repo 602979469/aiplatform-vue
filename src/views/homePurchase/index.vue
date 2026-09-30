@@ -71,10 +71,6 @@
       </div>
 
       <div v-if="list.length && total > list.length" class="hp-more" @click="loadMore">加载更多（{{ list.length }}/{{ total }}）</div>
-
-      <div class="hp-bottom">
-        <button class="hp-bottom__btn" @click="openAdd">＋ 添加家具</button>
-      </div>
     </template>
 
     <!-- ==================== 电脑端（保留表格） ==================== -->
@@ -1071,7 +1067,7 @@ export default {
 .hp--mobile {
   background: #f6f4f2;
   min-height: 100vh;
-  padding-bottom: 92px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
   font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
@@ -1311,28 +1307,6 @@ export default {
 .hp-empty__desc {
   font-size: 13px;
   margin-top: 6px;
-}
-
-.hp-bottom {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, rgba(246, 244, 242, 0.6), #f6f4f2 40%);
-  z-index: 1500;
-}
-
-.hp-bottom__btn {
-  width: 100%;
-  border: none;
-  border-radius: 16px;
-  padding: 15px;
-  font-size: 17px;
-  font-weight: 600;
-  color: #fff;
-  background: linear-gradient(135deg, #f6a56a, #ec8140);
-  box-shadow: 0 8px 20px rgba(236, 129, 64, 0.34);
 }
 
 /* 手机端抽屉 */
