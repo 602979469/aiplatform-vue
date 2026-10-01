@@ -79,6 +79,16 @@ export function recommendProducts(data) {
   })
 }
 
+// 一句话录入（移动端）：把用户口语解析成采购项草稿，供用户确认
+export function parsePurchaseItem(data) {
+  return request({
+    url: '/api/v1/homePurchaseItems/parse',
+    method: 'post',
+    data: data,
+    timeout: 90000
+  })
+}
+
 /** 图片上传地址（el-upload 内置上传用，namespace=aiplatform） */
 export const imageUploadUrl = process.env.VUE_APP_BASE_API + '/api/file/upload'
 

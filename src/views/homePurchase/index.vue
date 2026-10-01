@@ -71,6 +71,11 @@
       </div>
 
       <div v-if="list.length && total > list.length" class="hp-more" @click="loadMore">加载更多（{{ list.length }}/{{ total }}）</div>
+
+      <div class="hp-ai-fab" @click="openAi">
+        <span class="hp-ai-fab__icon">✨</span>
+        <span class="hp-ai-fab__text">AI</span>
+      </div>
     </template>
 
     <!-- ==================== 电脑端（保留表格） ==================== -->
@@ -290,6 +295,49 @@
         </div>
       </div>
     </div>
+
+    <!-- ==================== 一句话录入（仅手机端） ==================== -->
+    <div v-if="aiVisible" class="hp-mask" @click.self="aiVisible = false">
+      <div class="hp-sheet">
+        <div v-if="isMobile" class="hp-sheet__handle" />
+        <div class="hp-sheet__head">
+          <div class="hp-sheet__title">说一句，帮你加进去</div>
+          <div class="hp-sheet__close" @click="aiVisible = false">×</div>
+        </div>
+        <div class="hp-sheet__body">
+          <textarea
+            v-model="aiText"
+            class="hp-input hp-input--area"
+            rows="3"
+            placeholder="例如：我需要添加一个软装-阳台休闲椅，预算3000，小米的"
+          />
+          <div class="hp-ai-hint">只说"要加什么 + 预算"就行，其他问题我不回答。</div>
+
+          <div v-if="aiError" class="hp-ai-error">{{ aiError }}</div>
+
+          <div v-if="aiDraft" class="hp-ai-preview">
+            <div class="hp-ai-preview__title">将要添加：</div>
+            <div class="hp-ai-preview__line">
+              类型：{{ aiDraft.bigTypeName }}<template v-if="aiDraft.typeName"> · {{ aiDraft.typeName }}</template>
+            </div>
+            <div class="hp-ai-preview__line">名字：{{ aiDraft.productName }}</div>
+            <div class="hp-ai-preview__line">预算：{{ aiDraft.budgetText || '没提到，先留空' }}</div>
+            <div v-if="aiDraft.quantity > 1" class="hp-ai-preview__line">数量：{{ aiDraft.quantity }}</div>
+          </div>
+        </div>
+        <div class="hp-sheet__foot">
+          <button v-if="!aiDraft" class="hp-btn hp-btn--primary" :disabled="aiLoading" @click="submitAi">
+            {{ aiLoading ? '识别中…' : '提交' }}
+          </button>
+          <template v-else>
+            <button class="hp-btn hp-btn--danger" @click="aiDraft = null">重说</button>
+            <button class="hp-btn hp-btn--primary" :disabled="aiSaving" @click="confirmAi">
+              {{ aiSaving ? '添加中…' : '确认添加' }}
+            </button>
+          </template>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -303,6 +351,7 @@ import {
   updatePurchaseItem,
   delPurchaseItem,
   recommendProducts,
+  parsePurchaseItem,
   imagePreviewUrl,
   imageUploadUrl
 } from '@/api/homePurchase'
@@ -330,6 +379,12 @@ export default {
       recommendVisible: false,
       recommendLoading: false,
       recommendList: [],
+      aiVisible: false,
+      aiText: '',
+      aiLoading: false,
+      aiSaving: false,
+      aiDraft: null,
+      aiError: '',
       budgetQuicks: ['1000 以内', '1000~3000', '3000~6000', '6000~10000', '10000 以上']
     }
   },
@@ -606,6 +661,55 @@ export default {
     },
     goReport() {
       this.$router.push({ path: '/home-purchase/report' })
+    },
+    /** 打开一句话录入（仅手机端入口） */
+    openAi() {
+      this.aiText = ''
+      this.aiDraft = null
+      this.aiError = ''
+      this.aiVisible = true
+    },
+    /** 提交一句话 → 让 AI 解析成草稿，弹给用户看 */
+    submitAi() {
+      const text = (this.aiText || '').trim()
+      if (!text) {
+        this.$modal.msgWarning('说一句要添加什么吧')
+        return
+      }
+      this.aiLoading = true
+      this.aiError = ''
+      parsePurchaseItem({ text: text }).then(response => {
+        this.aiDraft = response.data || null
+        if (!this.aiDraft) {
+          this.aiError = '没听清，换个说法试试'
+        }
+      }).catch(error => {
+        this.aiDraft = null
+        this.aiError = (error && error.message) || '没听清，换个说法试试'
+      }).finally(() => {
+        this.aiLoading = false
+      })
+    },
+    /** 用户确认 → 走和手动录入一样的新增接口 */
+    confirmAi() {
+      if (!this.aiDraft) {
+        return
+      }
+      this.aiSaving = true
+      addPurchaseItem({
+        bigTypeCode: this.aiDraft.bigTypeCode,
+        typeCode: this.aiDraft.typeCode,
+        productName: this.aiDraft.productName,
+        quantity: this.aiDraft.quantity || 1,
+        budgetText: this.aiDraft.budgetText || undefined,
+        fileIds: []
+      }).then(() => {
+        this.$modal.msgSuccess('已添加：' + this.aiDraft.productName)
+        this.aiVisible = false
+        this.handleQuery()
+      }).finally(() => {
+        this.aiSaving = false
+      })
     }
   }
 }
@@ -918,6 +1022,70 @@ export default {
 }
 
 /* AI 入口 */
+.hp-ai-fab {
+  position: fixed;
+  right: 16px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f6a56a, #ec8140);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(236, 129, 64, 0.36);
+  z-index: 1500;
+  opacity: 0.92;
+}
+
+.hp-ai-fab__icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.hp-ai-fab__text {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-top: 1px;
+}
+
+.hp-ai-hint {
+  font-size: 12px;
+  color: #a49c94;
+  margin-top: 8px;
+}
+
+.hp-ai-error {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fdf0ef;
+  color: #d9534f;
+  font-size: 13px;
+}
+
+.hp-ai-preview {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #faf7f4;
+}
+
+.hp-ai-preview__title {
+  font-size: 12px;
+  color: #a49c94;
+  margin-bottom: 8px;
+}
+
+.hp-ai-preview__line {
+  font-size: 15px;
+  color: #2b2b2b;
+  line-height: 1.9;
+}
+
 .hp-ro {
   display: flex;
   align-items: center;
@@ -1067,7 +1235,7 @@ export default {
 .hp--mobile {
   background: #f6f4f2;
   min-height: 100vh;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
   font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
