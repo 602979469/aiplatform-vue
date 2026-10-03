@@ -210,7 +210,7 @@
           <div class="hp-field">
             <div class="hp-field__label">想买什么 / 什么牌子型号</div>
             <!-- AI 推荐需要知道类型，手机端新增的家具还没归类，先不显示 -->
-            <div v-if="!isMobile || form.id" class="hp-ai" @click="askAi">
+            <div v-if="!isMobile || form.id" class="hp-ai" @click="openRecommend">
               <span class="hp-ai__icon">✨</span>
               <span class="hp-ai__text">{{ recommendLoading ? 'AI 正在帮你挑…' : '不知道选哪个？让 AI 推荐 3 款' }}</span>
               <span class="hp-ai__arrow">›</span>
@@ -278,10 +278,23 @@
       <div class="hp-sheet">
         <div v-if="isMobile" class="hp-sheet__handle" />
         <div class="hp-sheet__head">
-          <div class="hp-sheet__title">为你挑了 3 款</div>
+          <div class="hp-sheet__title">{{ recommendList.length ? '为你挑了 3 款' : '让 AI 帮你挑 3 款' }}</div>
           <div class="hp-sheet__close" @click="recommendVisible = false">×</div>
         </div>
         <div class="hp-sheet__body">
+          <!-- 第一步：可以先说偏好（也可以留空直接推荐） -->
+          <template v-if="!recommendList.length">
+            <div v-if="form.typeName" class="hp-ai-target">
+              正在挑：{{ form.typeName }}<template v-if="form.budgetText"> ｜ 预算 {{ form.budgetText }}</template>
+            </div>
+            <input
+              v-model="recommendPreference"
+              class="hp-input"
+              placeholder="有偏好吗？比如「小米的」「要静音」「越便宜越好」"
+            >
+            <div class="hp-ai-hint">不写也行，直接按「经济性好 + 销量高 + 口碑好」挑三款。</div>
+          </template>
+
           <div v-for="(item, index) in recommendList" :key="index" class="hp-reco">
             <div class="hp-reco__rank">推荐 {{ index + 1 }}</div>
             <div class="hp-reco__name">{{ item.name || '参考建议' }}</div>
@@ -292,6 +305,15 @@
             </div>
             <button v-if="item.name" class="hp-btn hp-btn--ghost" @click="applySuggestion(item)">就选这款</button>
           </div>
+        </div>
+        <div class="hp-sheet__foot">
+          <button v-if="!recommendList.length" class="hp-btn hp-btn--primary" :disabled="recommendLoading" @click="askAi">
+            {{ recommendLoading ? 'AI 正在挑…' : '推荐 3 款' }}
+          </button>
+          <template v-else>
+            <button class="hp-btn hp-btn--danger" @click="resetRecommend">换个偏好</button>
+            <button class="hp-btn hp-btn--primary" @click="recommendVisible = false">知道了</button>
+          </template>
         </div>
       </div>
     </div>
@@ -379,6 +401,7 @@ export default {
       recommendVisible: false,
       recommendLoading: false,
       recommendList: [],
+      recommendPreference: '',
       aiVisible: false,
       aiText: '',
       aiLoading: false,
@@ -643,13 +666,27 @@ export default {
         bigTypeCode: this.form.bigTypeCode,
         typeCode: this.form.typeCode,
         budgetText: this.form.budgetText,
-        remark: this.form.remark
+        remark: this.form.remark,
+        preference: this.recommendPreference
       }).then(response => {
         this.recommendList = response.data || []
-        this.recommendVisible = true
       }).finally(() => {
         this.recommendLoading = false
       })
+    },
+    /** 打开 AI 推荐：先让用户说一句偏好（可留空） */
+    openRecommend() {
+      if (!this.form.bigTypeCode || !this.form.typeCode) {
+        this.$modal.msgWarning('先选一下家具类型，AI 才知道要推荐什么')
+        return
+      }
+      this.recommendList = []
+      this.recommendPreference = ''
+      this.recommendVisible = true
+    },
+    /** 回到偏好输入那一步 */
+    resetRecommend() {
+      this.recommendList = []
     },
     applySuggestion(item) {
       this.form.productName = item.name
@@ -1056,6 +1093,15 @@ export default {
   font-size: 12px;
   color: #a49c94;
   margin-top: 8px;
+}
+
+.hp-ai-target {
+  font-size: 13px;
+  color: #c96a1e;
+  background: #fff6ef;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
 }
 
 .hp-ai-error {
