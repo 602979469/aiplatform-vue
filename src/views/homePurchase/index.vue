@@ -51,7 +51,13 @@
             <div class="hp-card__arrow">›</div>
           </div>
           <div v-if="item.images && item.images.length" class="hp-card__photos">
-            <img v-for="img in item.images.slice(0, 4)" :key="img.id" :src="imagePreviewUrl(img.fileId)" alt="">
+            <img
+              v-for="(img, index) in item.images.slice(0, 4)"
+              :key="img.id"
+              :src="imagePreviewUrl(img.fileId)"
+              alt=""
+              @click.stop="openViewer(item.images, index)"
+            >
             <span v-if="item.images.length > 4" class="hp-card__more">+{{ item.images.length - 4 }}</span>
           </div>
           <div class="hp-card__bottom">
@@ -124,7 +130,13 @@
         <el-table-column label="参考图片" width="150">
           <template slot-scope="scope">
             <div class="hp-table-photos">
-              <img v-for="img in (scope.row.images || []).slice(0, 3)" :key="img.id" :src="imagePreviewUrl(img.fileId)" alt="">
+              <img
+                v-for="(img, index) in (scope.row.images || []).slice(0, 3)"
+                :key="img.id"
+                :src="imagePreviewUrl(img.fileId)"
+                alt=""
+                @click="openViewer(scope.row.images, index)"
+              >
               <span v-if="(scope.row.images || []).length > 3">+{{ scope.row.images.length - 3 }}</span>
             </div>
           </template>
@@ -284,8 +296,8 @@
         <div class="hp-sheet__body">
           <!-- 第一步：可以先说偏好（也可以留空直接推荐） -->
           <template v-if="!recommendList.length">
-            <div v-if="form.typeName" class="hp-ai-target">
-              正在挑：{{ form.typeName }}<template v-if="form.budgetText"> ｜ 预算 {{ form.budgetText }}</template>
+            <div v-if="recommendContext.typeName" class="hp-ai-target">
+              正在挑：{{ recommendContext.typeName }}<template v-if="recommendContext.productName"> ｜ {{ recommendContext.productName }}</template><template v-if="recommendContext.budgetText"> ｜ 预算 {{ recommendContext.budgetText }}</template>
             </div>
             <input
               v-model="recommendPreference"
@@ -319,7 +331,7 @@
     </div>
 
     <!-- ==================== 一句话录入（仅手机端） ==================== -->
-    <div v-if="aiVisible" class="hp-mask" @click.self="aiVisible = false">
+    <div v-if="aiVisible && !recommendVisible" class="hp-mask" @click.self="aiVisible = false">
       <div class="hp-sheet">
         <div v-if="isMobile" class="hp-sheet__handle" />
         <div class="hp-sheet__head">
@@ -353,11 +365,33 @@
           </button>
           <template v-else>
             <button class="hp-btn hp-btn--danger" @click="aiDraft = null">重说</button>
+            <button class="hp-btn hp-btn--ai" :disabled="recommendLoading" @click="openRecommendFromDraft">
+              {{ recommendLoading ? '挑款中…' : '✨ AI 帮我选' }}
+            </button>
             <button class="hp-btn hp-btn--primary" :disabled="aiSaving" @click="confirmAi">
               {{ aiSaving ? '添加中…' : '确认添加' }}
             </button>
           </template>
         </div>
+      </div>
+    </div>
+
+    <!-- ==================== 图片放大查看（手机/App 适配） ==================== -->
+    <div v-if="viewerVisible" class="hp-viewer" @click="closeViewer">
+      <div class="hp-viewer__bar">
+        <span class="hp-viewer__count">{{ viewerIndex + 1 }} / {{ viewerImages.length }}</span>
+        <span class="hp-viewer__close" @click.stop="closeViewer">×</span>
+      </div>
+      <img
+        v-if="viewerImages.length"
+        class="hp-viewer__img"
+        :src="imagePreviewUrl(viewerImages[viewerIndex].fileId)"
+        alt=""
+        @click.stop
+      >
+      <div v-if="viewerImages.length > 1" class="hp-viewer__nav">
+        <button class="hp-viewer__btn" @click.stop="viewerPrev">‹</button>
+        <button class="hp-viewer__btn" @click.stop="viewerNext">›</button>
       </div>
     </div>
   </div>
@@ -402,6 +436,11 @@ export default {
       recommendLoading: false,
       recommendList: [],
       recommendPreference: '',
+      recommendContext: {},
+      recommendSource: 'form',
+      viewerVisible: false,
+      viewerImages: [],
+      viewerIndex: 0,
       aiVisible: false,
       aiText: '',
       aiLoading: false,
@@ -657,16 +696,18 @@ export default {
       this.form.fileIds = this.photos.map(photo => photo.fileId).filter(id => !!id)
     },
     askAi() {
-      if (!this.form.bigTypeCode || !this.form.typeCode) {
+      const context = this.recommendContext || {}
+      if (!context.bigTypeCode || !context.typeCode) {
         this.$modal.msgWarning('先选一下家具类型，AI 才知道要推荐什么')
         return
       }
       this.recommendLoading = true
       recommendProducts({
-        bigTypeCode: this.form.bigTypeCode,
-        typeCode: this.form.typeCode,
-        budgetText: this.form.budgetText,
-        remark: this.form.remark,
+        bigTypeCode: context.bigTypeCode,
+        typeCode: context.typeCode,
+        productName: context.productName,
+        budgetText: context.budgetText,
+        remark: context.remark,
         preference: this.recommendPreference
       }).then(response => {
         this.recommendList = response.data || []
@@ -680,6 +721,33 @@ export default {
         this.$modal.msgWarning('先选一下家具类型，AI 才知道要推荐什么')
         return
       }
+      this.recommendContext = {
+        bigTypeCode: this.form.bigTypeCode,
+        typeCode: this.form.typeCode,
+        typeName: this.form.typeName,
+        productName: this.form.productName,
+        budgetText: this.form.budgetText,
+        remark: this.form.remark
+      }
+      this.recommendSource = 'form'
+      this.recommendList = []
+      this.recommendPreference = ''
+      this.recommendVisible = true
+    },
+    /** 打开 AI 推荐（来自一句话录入的解析结果）：类型/名字/预算用刚识别出来的 */
+    openRecommendFromDraft() {
+      if (!this.aiDraft) {
+        return
+      }
+      this.recommendContext = {
+        bigTypeCode: this.aiDraft.bigTypeCode,
+        typeCode: this.aiDraft.typeCode,
+        typeName: this.aiDraft.typeName,
+        productName: this.aiDraft.productName,
+        budgetText: this.aiDraft.budgetText,
+        remark: ''
+      }
+      this.recommendSource = 'draft'
       this.recommendList = []
       this.recommendPreference = ''
       this.recommendVisible = true
@@ -689,12 +757,39 @@ export default {
       this.recommendList = []
     },
     applySuggestion(item) {
+      if (this.recommendSource === 'draft' && this.aiDraft) {
+        this.aiDraft.productName = item.name
+        if (item.priceRange) {
+          this.aiDraft.budgetText = item.priceRange
+        }
+        this.recommendVisible = false
+        this.$modal.msgSuccess('已更新到待确认的采购项，点「确认添加」即可')
+        return
+      }
       this.form.productName = item.name
       if (item.priceRange) {
         this.form.budgetText = item.priceRange
       }
       this.recommendVisible = false
       this.$modal.msgSuccess('已经帮你填好了，可以再改')
+    },
+    /* ---------- 图片放大查看 ---------- */
+    openViewer(images, index) {
+      if (!images || !images.length) {
+        return
+      }
+      this.viewerImages = images
+      this.viewerIndex = index || 0
+      this.viewerVisible = true
+    },
+    closeViewer() {
+      this.viewerVisible = false
+    },
+    viewerPrev() {
+      this.viewerIndex = (this.viewerIndex - 1 + this.viewerImages.length) % this.viewerImages.length
+    },
+    viewerNext() {
+      this.viewerIndex = (this.viewerIndex + 1) % this.viewerImages.length
     },
     goReport() {
       this.$router.push({ path: '/home-purchase/report' })
@@ -1218,9 +1313,78 @@ export default {
 
 .hp-btn--danger {
   flex: none;
-  width: 92px;
+  width: 72px;
   background: #fdf0ef;
   color: #d9534f;
+}
+
+.hp-btn--ai {
+  flex: 1;
+  background: #fff6ef;
+  border: 1px solid #f5c99b;
+  color: #c96a1e;
+  font-size: 15px;
+}
+
+/* 图片放大查看 */
+.hp-viewer {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 10, 9, 0.93);
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hp-viewer__bar {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  color: #fff;
+  font-size: 14px;
+}
+
+.hp-viewer__close {
+  font-size: 30px;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.hp-viewer__img {
+  max-width: 100vw;
+  max-height: 100vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  padding: 54px 8px calc(64px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+.hp-viewer__nav {
+  position: absolute;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 56px;
+}
+
+.hp-viewer__btn {
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 24px;
+  line-height: 1;
 }
 
 .hp-btn--ghost {
