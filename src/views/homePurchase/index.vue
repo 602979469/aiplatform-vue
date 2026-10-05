@@ -250,7 +250,7 @@
             <div class="hp-field__label">参考图片 <span class="hp-field__hint">（最多 10 张）</span></div>
             <div class="hp-photos">
               <div v-for="(photo, index) in photos" :key="photo.uid" class="hp-photos__item">
-                <img :src="photo.url" alt="">
+                <img :src="photo.url" alt="" @click="openViewer(photos, index)">
                 <span class="hp-photos__del" @click.stop="removePhoto(index)">×</span>
               </div>
               <el-upload
