@@ -30,12 +30,17 @@
             {{ group.icon }} {{ group.name }}（{{ group.items.length }}）
           </el-checkbox>
         </div>
-        <el-checkbox-group v-model="selectedIds" class="report-pick__items">
-          <el-checkbox v-for="item in group.items" :key="item.id" :label="item.id">
-            <span class="report-pick__name">{{ item.typeName }} · {{ item.productName }}</span>
-            <span class="report-pick__budget">{{ item.budgetText || '待填预算' }}</span>
+        <div v-for="child in group.children" :key="child.code" class="report-pick__child">
+          <el-checkbox :value="isChildChecked(child)" :indeterminate="isChildIndeterminate(child)" @change="toggleChild(child)">
+            {{ child.name }}（{{ child.items.length }}）
           </el-checkbox>
-        </el-checkbox-group>
+          <el-checkbox-group v-model="selectedIds" class="report-pick__items">
+            <el-checkbox v-for="item in child.items" :key="item.id" :label="item.id">
+              <span class="report-pick__name">{{ item.productName }}</span>
+              <span class="report-pick__budget">{{ item.budgetText || '待填预算' }}</span>
+            </el-checkbox>
+          </el-checkbox-group>
+        </div>
       </div>
     </div>
 
@@ -53,18 +58,26 @@
       <div class="report-sheet__toc">
         <div class="report-sheet__section-title">目录</div>
         <ol>
-          <li v-for="group in report.groups" :key="group.code">
-            {{ group.name }}
-            <span class="report-sheet__toc-sub">{{ group.children.map(child => child.name).join('、') }}</span>
+          <li v-for="(group, groupIndex) in report.groups" :key="group.code">
+            <span class="report-sheet__toc-name">{{ groupIndex + 1 }}. {{ group.name }}</span>
             <span class="report-sheet__toc-amount">￥{{ money(group.subtotalMin) }} ~ ￥{{ money(group.subtotalMax) }}</span>
+            <ol class="report-sheet__toc-children">
+              <li v-for="(child, childIndex) in group.children" :key="child.code">
+                {{ groupIndex + 1 }}.{{ childIndex + 1 }} {{ child.name }}（{{ child.items.length }} 项）
+                <span class="report-sheet__toc-amount">￥{{ money(child.subtotalMin) }} ~ ￥{{ money(child.subtotalMax) }}</span>
+              </li>
+            </ol>
           </li>
         </ol>
       </div>
 
-      <div v-for="group in report.groups" :key="group.code" class="report-group">
-        <h2>{{ group.name }}（￥{{ money(group.subtotalMin) }} ~ ￥{{ money(group.subtotalMax) }}）</h2>
-        <div v-for="child in group.children" :key="child.code" class="report-sub">
-          <h3>{{ child.name }} <small>小计 ￥{{ money(child.subtotalMin) }} ~ ￥{{ money(child.subtotalMax) }}</small></h3>
+      <div v-for="(group, groupIndex) in report.groups" :key="group.code" class="report-group">
+        <h2>{{ groupIndex + 1 }}. {{ group.name }}（￥{{ money(group.subtotalMin) }} ~ ￥{{ money(group.subtotalMax) }}）</h2>
+        <div v-for="(child, childIndex) in group.children" :key="child.code" class="report-sub">
+          <h3>
+            {{ groupIndex + 1 }}.{{ childIndex + 1 }} {{ child.name }}
+            <small>（{{ child.items.length }} 项｜小计 ￥{{ money(child.subtotalMin) }} ~ ￥{{ money(child.subtotalMax) }}）</small>
+          </h3>
           <table class="report-table">
             <thead>
               <tr>
@@ -144,11 +157,25 @@ export default {
       this.items.forEach(item => {
         let group = groupMap[item.bigTypeCode]
         if (!group) {
-          group = { code: item.bigTypeCode, name: item.bigTypeName, icon: this.typeIcons[item.bigTypeCode] || '🧾', items: [] }
+          group = {
+            code: item.bigTypeCode,
+            name: item.bigTypeName,
+            icon: this.typeIcons[item.bigTypeCode] || '🧾',
+            items: [],
+            children: [],
+            childMap: {}
+          }
           groupMap[item.bigTypeCode] = group
           groups.push(group)
         }
         group.items.push(item)
+        let child = group.childMap[item.typeCode]
+        if (!child) {
+          child = { code: item.typeCode, name: item.typeName, items: [] }
+          group.childMap[item.typeCode] = child
+          group.children.push(child)
+        }
+        child.items.push(item)
       })
       return groups
     },
@@ -187,6 +214,21 @@ export default {
     toggleGroup(group) {
       const checked = this.isGroupChecked(group)
       const ids = group.items.map(item => item.id)
+      this.selectedIds = checked
+        ? this.selectedIds.filter(id => !ids.includes(id))
+        : Array.from(new Set(this.selectedIds.concat(ids)))
+    },
+    /** 小类（二级）勾选状态 */
+    isChildChecked(child) {
+      return child.items.every(item => this.selectedIds.includes(item.id))
+    },
+    isChildIndeterminate(child) {
+      const checked = child.items.filter(item => this.selectedIds.includes(item.id)).length
+      return checked > 0 && checked < child.items.length
+    },
+    toggleChild(child) {
+      const checked = this.isChildChecked(child)
+      const ids = child.items.map(item => item.id)
       this.selectedIds = checked
         ? this.selectedIds.filter(id => !ids.includes(id))
         : Array.from(new Set(this.selectedIds.concat(ids)))
@@ -313,6 +355,16 @@ export default {
   color: #303133;
 }
 
+.report-pick__child {
+  padding-left: 18px;
+  margin-top: 2px;
+}
+
+.report-pick__child > .el-checkbox {
+  color: #606266;
+  font-weight: 600;
+}
+
 .report-pick__items {
   display: flex;
   flex-wrap: wrap;
@@ -361,10 +413,15 @@ export default {
   font-size: 13px;
 }
 
-.report-sheet__toc-sub {
-  color: #909399;
-  margin-left: 8px;
+.report-sheet__toc-name {
+  font-weight: 600;
+}
+
+.report-sheet__toc-children {
+  padding-left: 22px;
   font-size: 12px;
+  color: #606266;
+  line-height: 1.8;
 }
 
 .report-sheet__toc-amount {
