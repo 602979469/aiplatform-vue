@@ -39,7 +39,13 @@
     <el-table v-if="!isMobile" v-loading="loading" :data="list" border size="small">
       <el-table-column label="图片" width="140" align="center">
         <template slot-scope="scope">
-          <img class="material-thumb" :src="previewUrl(scope.row)" alt="素材" @click="openViewer(scope.$index)">
+          <img
+            class="material-thumb"
+            :src="previewUrl(scope.row, 320)"
+            alt="素材"
+            loading="lazy"
+            @click="openViewer(scope.$index)"
+          >
         </template>
       </el-table-column>
       <el-table-column prop="originalName" label="名称" min-width="200" show-overflow-tooltip />
@@ -64,7 +70,7 @@
     <!-- 手机端：卡片网格 -->
     <div v-else v-loading="loading" class="material-grid">
       <div v-for="(row, index) in list" :key="row.id" class="material-card" @click="openViewer(index)">
-        <img :src="previewUrl(row)" alt="素材">
+        <img :src="previewUrl(row, 480)" alt="素材" loading="lazy">
         <div class="material-card__body">
           <div class="material-card__name">{{ row.originalName }}</div>
           <div class="material-card__meta">
@@ -123,7 +129,7 @@
     <el-dialog title="修改素材" :visible.sync="editOpen" :width="isMobile ? '92%' : '480px'" append-to-body>
       <el-form label-width="64px" size="small">
         <el-form-item label="预览">
-          <img class="material-edit-preview" :src="previewUrl(editForm)" alt="素材" @click="openViewer(indexOfEdit())">
+          <img class="material-edit-preview" :src="previewUrl(editForm, 480)" alt="素材" @click="openViewer(indexOfEdit())">
         </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="editForm.originalName" size="small" maxlength="200" />
@@ -205,12 +211,18 @@ export default {
     this.getList()
   },
   methods: {
-    /** 素材直出地址（inline 图片流） */
-    previewUrl(row) {
+    /**
+     * 素材直出地址（inline 图片流）
+     * @param row 文件行
+     * @param width 可选：缩略图宽度；不带则取原图（看大图用）
+     */
+    previewUrl(row, width) {
       if (!row || !row.id) {
         return ''
       }
-      return process.env.VUE_APP_BASE_API + '/api/file/' + row.id + '/preview?namespace=' + (row.namespace || 'aiplatform')
+      const suffix = width ? '&w=' + width : ''
+      return process.env.VUE_APP_BASE_API + '/api/file/' + row.id + '/preview?namespace='
+        + (row.namespace || 'aiplatform') + suffix
     },
     getList() {
       this.loading = true

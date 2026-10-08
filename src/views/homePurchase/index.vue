@@ -54,8 +54,9 @@
             <img
               v-for="(img, index) in item.images.slice(0, 4)"
               :key="img.id"
-              :src="imagePreviewUrl(img.fileId)"
+              :src="imagePreviewUrl(img.fileId, 320)"
               alt=""
+              loading="lazy"
               @click.stop="openViewer(item.images, index)"
             >
             <span v-if="item.images.length > 4" class="hp-card__more">+{{ item.images.length - 4 }}</span>
@@ -133,8 +134,9 @@
               <img
                 v-for="(img, index) in (scope.row.images || []).slice(0, 3)"
                 :key="img.id"
-                :src="imagePreviewUrl(img.fileId)"
+                :src="imagePreviewUrl(img.fileId, 160)"
                 alt=""
+                loading="lazy"
                 @click="openViewer(scope.row.images, index)"
               >
               <span v-if="(scope.row.images || []).length > 3">+{{ scope.row.images.length - 3 }}</span>
@@ -250,7 +252,7 @@
             <div class="hp-field__label">参考图片 <span class="hp-field__hint">（最多 10 张）</span></div>
             <div class="hp-photos">
               <div v-for="(photo, index) in photos" :key="photo.uid" class="hp-photos__item">
-                <img :src="photo.url" alt="" @click="openViewer(photos, index)">
+                <img :src="photo.url" alt="" loading="lazy" @click="openViewer(photos, index)">
                 <span class="hp-photos__del" @click.stop="removePhoto(index)">×</span>
               </div>
               <el-upload
@@ -584,7 +586,8 @@ export default {
       }
       this.photos = (row.images || []).map(image => ({
         uid: 'image-' + image.id,
-        url: imagePreviewUrl(image.fileId),
+        // 表单里的宫格用缩略图；点开放大时用 fileId 取原图
+        url: imagePreviewUrl(image.fileId, 320),
         fileId: image.fileId
       }))
       this.recommendList = []
@@ -680,7 +683,7 @@ export default {
       }
       this.photos.push({
         uid: file.uid,
-        url: imagePreviewUrl(response.data.id),
+        url: imagePreviewUrl(response.data.id, 320),
         fileId: response.data.id
       })
       this.syncFileIds()

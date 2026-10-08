@@ -94,7 +94,13 @@
               <tr v-for="item in child.items" :key="item.id">
                 <td class="report-table__thumb">
                   <div class="report-thumbs">
-                    <img v-for="img in item.images.slice(0, 3)" :key="img.id" :src="imagePreviewUrl(img.fileId)" alt="参考图" />
+                    <img
+                      v-for="img in item.images.slice(0, 3)"
+                      :key="img.id"
+                      :src="imagePreviewUrl(img.fileId, 640)"
+                      alt="参考图"
+                      loading="lazy"
+                    >
                     <span v-if="!item.images.length" class="report-thumbs__none">无</span>
                   </div>
                 </td>

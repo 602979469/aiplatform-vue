@@ -92,7 +92,12 @@ export function parsePurchaseItem(data) {
 /** 图片上传地址（el-upload 内置上传用，namespace=aiplatform） */
 export const imageUploadUrl = process.env.VUE_APP_BASE_API + '/api/file/upload'
 
-/** 图片直出地址（inline 预览，可直接放进 img 的 src） */
-export function imagePreviewUrl(fileId) {
-  return process.env.VUE_APP_BASE_API + '/api/file/' + fileId + '/preview?namespace=aiplatform'
+/**
+ * 图片直出地址（inline 预览，可直接放进 img 的 src）
+ * @param fileId 文件ID
+ * @param width 可选：取缩略图宽度（原图动辄几 MB，列表必须传，看大图时不传）
+ */
+export function imagePreviewUrl(fileId, width) {
+  const suffix = width ? '&w=' + width : ''
+  return process.env.VUE_APP_BASE_API + '/api/file/' + fileId + '/preview?namespace=aiplatform' + suffix
 }
