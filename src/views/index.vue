@@ -15,6 +15,9 @@
       </div>
     </div>
 
+    <!-- 留言板（匿名发言，放在集群信息之上，优先给面试官看） -->
+    <message-board />
+
     <!-- 集群节点信息 -->
     <div class="panel">
       <div class="panel-header">
@@ -107,9 +110,11 @@
 
 <script>
 import { getDashboard } from '@/api/cluster'
+import MessageBoard from '@/components/MessageBoard/index.vue'
 
 export default {
   name: 'Index',
+  components: { MessageBoard },
   data() {
     return {
       title: process.env.VUE_APP_TITLE || 'AI工具箱',
