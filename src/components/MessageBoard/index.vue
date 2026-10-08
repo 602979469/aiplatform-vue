@@ -5,7 +5,6 @@
         <span class="board-logo">💬</span>
         <div class="board-head-text">
           <h3 class="board-title">留言板</h3>
-          <p class="board-sub">匿名发言 · 同一个 IP 同一个颜色</p>
         </div>
       </div>
       <button class="board-refresh" :class="{ busy: loading }" title="看看有没有新留言" @click="loadLatest">
@@ -35,7 +34,6 @@
         </span>
         <div class="board-main">
           <div class="board-meta">
-            <span class="board-name" :style="{ color: palette(msg).text }">{{ msg.avatarName || '匿名' }}</span>
             <span class="board-time">{{ relativeTime(msg.createTimestamp) }}</span>
           </div>
           <div class="board-bubble" :class="{ mine: msg.mine }" :style="bubbleStyle(msg)">{{ msg.content }}</div>
@@ -249,16 +247,32 @@ export default {
 }
 
 .board-title {
+  position: relative;
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2430;
+  padding: 0 2px 3px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  line-height: 1.1;
+  color: #6d5bff;
+  background: linear-gradient(100deg, #4f46e5 0%, #8b5cf6 42%, #ec4899 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.board-sub {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: #8a90a0;
+/* 艺术字底部的一抹流光 */
+.board-title::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: -1px;
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(79, 70, 229, 0.35) 0%, rgba(236, 72, 153, 0.35) 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 62%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000 0%, #000 62%, transparent 100%);
 }
 
 .board-refresh {
@@ -375,17 +389,8 @@ export default {
   text-align: right;
 }
 
-.board-name {
-  font-weight: 600;
-}
-
 .board-time {
-  margin-left: 6px;
-}
-
-.board-row.mine .board-time {
-  margin-left: 0;
-  margin-right: 6px;
+  letter-spacing: 0.5px;
 }
 
 .board-bubble {
