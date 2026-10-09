@@ -104,8 +104,12 @@ service.interceptors.response.use(res => {
   return res.data
 },
 error => {
-  console.log('err' + error)
-  const status = error.response ? error.response.status : null
+	console.log('err' + error)
+	// 静默请求（如首页集群状态）：失败不弹全局提示，由调用方自己决定怎么展示
+	if (error.config && error.config.silent) {
+		return Promise.reject(error)
+	}
+	const status = error.response ? error.response.status : null
   if (status === 401) {
     handleRelogin()
     return Promise.reject(new Error('未登录或登录已过期'))

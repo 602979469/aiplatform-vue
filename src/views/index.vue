@@ -21,10 +21,14 @@
     <!-- 集群节点信息 -->
     <div class="panel">
       <div class="panel-header">
-        <span><i class="el-icon-s-platform panel-header-icon" />集群节点信息</span>
-        <el-button type="text" size="mini" icon="el-icon-refresh" @click="refresh">刷新</el-button>
+        <span>
+          <i class="el-icon-s-platform panel-header-icon" />集群节点信息
+          <em v-if="dashboardLoading" class="panel-hint">更新中…</em>
+          <em v-else-if="dashboardError" class="panel-hint panel-hint--warn">这次没取到，稍后点「刷新」</em>
+        </span>
+        <el-button type="text" size="mini" icon="el-icon-refresh" :disabled="dashboardLoading" @click="refresh">刷新</el-button>
       </div>
-      <div v-loading="dashboardLoading" class="node-grid">
+      <div class="node-grid">
         <div v-for="node in nodes" :key="node.nodeName" class="node-row">
           <div class="node-name-cell">
             <div class="node-name">{{ node.nodeName }}</div>
@@ -120,6 +124,7 @@ export default {
       title: process.env.VUE_APP_TITLE || 'AI工具箱',
       dashboard: {},
       dashboardLoading: false,
+      dashboardError: false,
       quickLinks: [
         { name: 'AI 对话', desc: '与 AI 助手聊天', icon: 'el-icon-chat-dot-round', path: '/ai/chat', color: '#3b82f6', bg: '#eef4ff' },
         { name: '镜像加速器', desc: '搜索并拉取 Docker 镜像', icon: 'el-icon-connection', path: '/ai/mirror', color: '#22c55e', bg: '#f0fdf4' },
@@ -174,10 +179,12 @@ export default {
 
     loadDashboard() {
       this.dashboardLoading = true
+      this.dashboardError = false
       getDashboard().then(response => {
         this.dashboard = response.data || {}
       }).catch(() => {
-        this.dashboard = {}
+        // 集群接口偶尔会慢或失败：保留上一次的数据，只在标题旁提示，不弹全局报错
+        this.dashboardError = true
       }).finally(() => {
         this.dashboardLoading = false
       })
@@ -440,6 +447,17 @@ export default {
 .panel-header-icon {
   margin-right: 6px;
   color: #409eff;
+}
+/* 加载 / 失败提示：不用遮罩转圈，标题旁边一行小字，静静等 */
+.panel-hint {
+  margin-left: 8px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 400;
+  color: #b6bccb;
+}
+.panel-hint--warn {
+  color: #e6a23c;
 }
 /* 快捷入口 */
 .quick-grid {

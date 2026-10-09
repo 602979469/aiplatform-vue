@@ -12,7 +12,7 @@
       </button>
     </div>
 
-    <div ref="scroller" v-loading="loading" class="board-body">
+    <div ref="scroller" class="board-body">
       <div
         v-if="messages.length"
         class="board-more"

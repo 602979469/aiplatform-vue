@@ -6,7 +6,9 @@ export function getDashboard() {
   return request({
     url: '/api/cluster/dashboard',
     method: 'get',
-    timeout: 30000
+    timeout: 30000,
+    // 静默：集群接口偶尔会慢或失败，首页不希望弹全局报错
+    silent: true
   })
 }
 
