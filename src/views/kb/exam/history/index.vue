@@ -6,12 +6,16 @@
       <el-table-column label="状态" width="90" align="center">
         <template slot-scope="scope">
           <el-tag v-if="scope.row.status === 'IN_PROGRESS'" size="mini" type="warning">未完成</el-tag>
+          <el-tag v-else-if="scope.row.status === 'GRADING'" size="mini" type="info">判题中</el-tag>
           <el-tag v-else size="mini" type="success">已交卷</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="得分" width="110" align="center">
         <template slot-scope="scope">
           <template v-if="scope.row.status === 'IN_PROGRESS'">-</template>
+          <template v-else-if="scope.row.status === 'GRADING'">
+            <span class="history-grading"><i class="el-icon-loading" /> {{ scope.row.score }}</span>
+          </template>
           <template v-else><b class="history-score">{{ scope.row.score }}</b> / {{ scope.row.totalScore }}</template>
         </template>
       </el-table-column>
@@ -60,11 +64,16 @@ export default {
       loading: false,
       list: [],
       total: 0,
+      // 判题中的试卷存在时用于自动刷新列表
+      gradingTimer: null,
       query: { pageNum: 1, pageSize: 10 }
     }
   },
   created() {
     this.getList()
+  },
+  beforeDestroy() {
+    this.stopGradingPoll()
   },
   methods: {
     getList() {
@@ -73,9 +82,38 @@ export default {
         const data = (res && res.data) || {}
         this.list = data.dataList || []
         this.total = data.total || 0
+        this.syncGradingPoll()
       }).finally(() => {
         this.loading = false
       })
+    },
+    /** 有试卷还在判题中时，每 5 秒刷新一次列表（不阻塞、不转圈） */
+    syncGradingPoll() {
+      if (this.gradingTimer) {
+        clearInterval(this.gradingTimer)
+        this.gradingTimer = null
+      }
+      const hasGrading = (this.list || []).some(row => row.status === 'GRADING')
+      if (!hasGrading) {
+        return
+      }
+      this.gradingTimer = setInterval(() => {
+        listExamHistory(this.query).then(res => {
+          const data = (res && res.data) || {}
+          this.list = data.dataList || []
+          this.total = data.total || 0
+          if (!(this.list || []).some(row => row.status === 'GRADING')) {
+            clearInterval(this.gradingTimer)
+            this.gradingTimer = null
+          }
+        }).catch(() => {})
+      }, 5000)
+    },
+    stopGradingPoll() {
+      if (this.gradingTimer) {
+        clearInterval(this.gradingTimer)
+        this.gradingTimer = null
+      }
     },
     /** 未完成的考试：回到答题页继续作答 */
     resumeExam(row) {
@@ -108,6 +146,12 @@ export default {
 .history-score {
   color: #409eff;
   font-size: 15px;
+}
+
+/* 判题中：显示部分得分 + 转圈，判完自动刷新 */
+.history-grading {
+  color: #e6a23c;
+  font-size: 13px;
 }
 .is-ok {
   color: #67c23a;

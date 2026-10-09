@@ -307,6 +307,13 @@
           </span>
         </div>
         <div class="exam-result__summary">
+          <div v-if="result.status === 'GRADING'" class="exam-grading">
+            <i class="el-icon-loading" />
+            <div class="exam-grading__text">
+              <b>AI 判题中…</b>
+              <span>解答题在后台判分（每题 1~3 秒），本页每 3 秒自动刷新，判完自动出分</span>
+            </div>
+          </div>
           <div class="exam-result__score">
             <b>{{ result.score }}</b><span>/ {{ result.totalScore }}</span>
           </div>
@@ -423,6 +430,8 @@ export default {
       currentIndex: 0,
       remaining: 0,
       timer: null,
+      // 交卷后解答题异步判分：状态 GRADING 时用这个定时器轮询成绩
+      resultTimer: null,
       result: { questions: [] },
       templates: [],
       selectedTemplateId: undefined,
@@ -519,6 +528,7 @@ export default {
   },
   beforeDestroy() {
     this.clearTimer()
+    this.stopResultPolling()
   },
   methods: {
     subtopicsOf(category) {
@@ -653,6 +663,7 @@ export default {
           getExamResult(paperId).then(resultRes => {
             this.result = (resultRes && resultRes.data) || data
             this.stage = 'RESULT'
+            this.startResultPolling()
           })
           return
         }
@@ -679,6 +690,36 @@ export default {
       if (this.timer) {
         clearInterval(this.timer)
         this.timer = null
+      }
+    },
+    /**
+     * 交卷后解答题走后台异步判分：状态为 GRADING 时每 3 秒拉一次成绩，判完自动展示。
+     * 前端不阻塞、不转圈等，用户可以随时离开本页。
+     */
+    startResultPolling() {
+      this.stopResultPolling()
+      if (!this.result || this.result.status !== 'GRADING' || !this.result.paperId) {
+        return
+      }
+      const paperId = this.result.paperId
+      this.resultTimer = setInterval(() => {
+        getExamResult(paperId).then(res => {
+          const data = (res && res.data) || null
+          if (!data) {
+            return
+          }
+          this.result = data
+          if (data.status !== 'GRADING') {
+            this.stopResultPolling()
+            this.$modal.msgSuccess('判题完成，成绩已更新')
+          }
+        }).catch(() => {})
+      }, 3000)
+    },
+    stopResultPolling() {
+      if (this.resultTimer) {
+        clearInterval(this.resultTimer)
+        this.resultTimer = null
       }
     },
     isSelected(key) {
@@ -763,6 +804,7 @@ export default {
       submitExam(this.paper.paperId).then(res => {
         this.result = res.data
         this.stage = 'RESULT'
+        this.startResultPolling()
       })
     },
     /** 最后一题渲染为"交卷"，其余为"下一题" */
@@ -1048,6 +1090,37 @@ export default {
 }
 
 /* 成绩 */
+.exam-grading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fdf6ec;
+  border: 1px solid #f5dab1;
+  color: #b88230;
+}
+
+.exam-grading i {
+  font-size: 20px;
+}
+
+.exam-grading__text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.6;
+}
+
+.exam-grading__text b {
+  font-size: 14px;
+}
+
+.exam-grading__text span {
+  font-size: 12px;
+  color: #c99b52;
+}
+
 .exam-result__summary {
   display: flex;
   align-items: center;
