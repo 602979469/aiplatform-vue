@@ -10,7 +10,7 @@
           default-first-option
           clearable
           size="large"
-          placeholder="搜索 Java 面试题 / 知识点，例如：线程池、JVM 垃圾回收"
+          placeholder="按标题搜索面试题，例如：线程池、JVM 垃圾回收"
           @change="doSearch(keyword)"
           @keyup.enter.native="doSearch(keyword)"
         >
