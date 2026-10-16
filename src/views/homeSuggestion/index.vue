@@ -1,32 +1,54 @@
 <template>
   <div class="app-container suggestion-page" :class="{ 'suggestion-page--mobile': isMobile }">
-    <!-- 筛选 -->
-    <el-form :inline="true" size="small" class="suggestion-filter">
-      <el-form-item label="区域">
-        <el-select v-model="query.region" placeholder="全部区域" clearable style="width: 150px" @change="handleQuery">
-          <el-option v-for="region in regions" :key="region" :label="region" :value="region" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="标题">
-        <el-input v-model="query.title" placeholder="意见标题" clearable style="width: 190px" @keyup.enter.native="handleQuery" />
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
-        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
-      </el-form-item>
-    </el-form>
+    <!-- 电脑端：筛选 + 工具栏 -->
+    <template v-if="!isMobile">
+      <el-form :inline="true" size="small" class="suggestion-filter">
+        <el-form-item label="区域">
+          <el-select v-model="query.region" placeholder="全部区域" clearable style="width: 150px" @change="handleQuery">
+            <el-option v-for="region in regions" :key="region" :label="region" :value="region" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="标题">
+          <el-input v-model="query.title" placeholder="意见标题" clearable style="width: 190px" @keyup.enter.native="handleQuery" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
+          <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
 
-    <el-row :gutter="10" class="mb8">
-      <el-col :span="1.5">
-        <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="openAdd">新增意见</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button type="success" plain icon="el-icon-magic-stick" size="mini" @click="openAi">AI 识别</el-button>
-      </el-col>
-      <el-col :span="1.5">
-        <el-button type="warning" plain icon="el-icon-printer" size="mini" @click="goExport">一键导出 PDF</el-button>
-      </el-col>
-    </el-row>
+      <el-row :gutter="10" class="mb8">
+        <el-col :span="1.5">
+          <el-button type="success" plain icon="el-icon-magic-stick" size="mini" @click="openAi">AI 识别</el-button>
+        </el-col>
+        <el-col :span="1.5">
+          <el-button type="warning" plain icon="el-icon-printer" size="mini" @click="goExport">一键导出 PDF</el-button>
+        </el-col>
+      </el-row>
+    </template>
+
+    <!-- 手机端：区域 chips + 搜索 -->
+    <div v-else class="suggestion-mobile-bar">
+      <div class="suggestion-chips">
+        <span class="suggestion-chip" :class="{ 'suggestion-chip--on': !query.region }" @click="pickRegion(undefined)">全部</span>
+        <span
+          v-for="region in regions"
+          :key="region"
+          class="suggestion-chip"
+          :class="{ 'suggestion-chip--on': query.region === region }"
+          @click="pickRegion(region)"
+        >{{ region }}</span>
+      </div>
+      <el-input
+        v-model="query.title"
+        size="small"
+        clearable
+        prefix-icon="el-icon-search"
+        placeholder="搜意见标题"
+        @keyup.enter.native="handleQuery"
+        @clear="handleQuery"
+      />
+    </div>
 
     <!-- 电脑端：表格 -->
     <el-table v-if="!isMobile" v-loading="loading" :data="list" border size="small">
@@ -80,7 +102,13 @@
       </div>
     </div>
 
-    <el-empty v-if="!loading && !list.length" description="还没有意见，点「新增意见」记录一条" />
+    <el-empty v-if="!loading && !list.length" :description="isMobile ? '还没有意见，点下方「一句话记意见」说一句就行' : '还没有意见，点「AI 识别」说一句就能记一条'" />
+
+    <!-- 手机端：底部固定入口（添加一律走 AI） -->
+    <div v-if="isMobile" class="suggestion-fab">
+      <button type="button" class="suggestion-fab__main" @click="openAi">✨ 一句话记意见</button>
+      <button type="button" class="suggestion-fab__sub" @click="goExport">导出 PDF</button>
+    </div>
 
     <pagination
       v-show="total > 0"
@@ -131,16 +159,22 @@
         </el-form-item>
       </el-form>
       <div slot="footer">
+        <el-button
+          v-if="form.id"
+          type="text"
+          style="float: left; color: #f56c6c"
+          @click="handleDelete(form)"
+        >删除</el-button>
         <el-button size="small" @click="formVisible = false">取消</el-button>
         <el-button type="primary" size="small" :loading="saving" @click="submit">保存</el-button>
       </div>
     </el-dialog>
 
     <!-- AI 一句话识别 -->
-    <el-dialog title="AI 识别装修意见" :visible.sync="aiVisible" :width="isMobile ? '94%' : '560px'" append-to-body>
+    <el-dialog title="AI 识别装修意见" :visible.sync="aiVisible" :width="isMobile ? '94%' : '560px'" :fullscreen="isMobile" append-to-body>
       <div class="ai-tip">
         随口说一句就行，例如：<b>厨房台面想做 85cm，不然洗碗一直弯腰</b>；AI 会自动判断区域、拟好标题和内容，
-        确认后帮你创建（图片之后再补）。
+        识别完弹到表单里，确认无误（有照片可以顺手传）点保存就创建。
       </div>
       <el-input
         v-model="aiText"
@@ -246,14 +280,16 @@ export default {
       this.query.pageNum = 1
       this.getList()
     },
+    pickRegion(region) {
+      if (this.query.region === region) {
+        return
+      }
+      this.query.region = region
+      this.handleQuery()
+    },
     resetQuery() {
       this.query = { region: undefined, title: undefined, pageNum: 1, pageSize: 10 }
       this.getList()
-    },
-    openAdd() {
-      this.form = this.emptyForm()
-      this.fileList = []
-      this.formVisible = true
     },
     openEdit(row) {
       this.form = {
@@ -293,6 +329,9 @@ export default {
     handleDelete(row) {
       this.$modal.confirm('确认删除「' + row.title + '」？').then(() => delSuggestion(row.id)).then(() => {
         this.$modal.msgSuccess('已删除')
+        if (this.form.id === row.id) {
+          this.formVisible = false
+        }
         this.getList()
       }).catch(() => {})
     },
@@ -419,7 +458,78 @@ export default {
 }
 
 .suggestion-page--mobile {
-  padding-bottom: 24px;
+  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+}
+
+.suggestion-mobile-bar {
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 10px 10px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+}
+
+.suggestion-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.suggestion-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.suggestion-chip {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #f2f3f5;
+  color: #606266;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.suggestion-chip--on {
+  background: #409eff;
+  color: #fff;
+  font-weight: 600;
+}
+
+.suggestion-fab {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 10px;
+  padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+  z-index: 1500;
+}
+
+.suggestion-fab__main {
+  flex: 1;
+  height: 44px;
+  border: none;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #5b8cff, #7a5cff);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(91, 140, 255, 0.35);
+}
+
+.suggestion-fab__sub {
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid #dcdfe6;
+  border-radius: 22px;
+  background: #fff;
+  color: #606266;
+  font-size: 14px;
 }
 
 .suggestion-cards .suggestion-card {

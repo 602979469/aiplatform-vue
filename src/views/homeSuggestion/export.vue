@@ -107,6 +107,7 @@ export default {
 .export-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   background: #fff;
   padding: 12px 16px;
@@ -118,6 +119,34 @@ export default {
 .export-tip {
   color: #909399;
   font-size: 12px;
+}
+
+/* 手机端：工具栏换行、纸张内边距收窄、图片一屏两张 */
+@media screen and (max-width: 768px) {
+  .export-toolbar {
+    gap: 8px;
+  }
+
+  .export-toolbar .el-input {
+    width: 100% !important;
+  }
+
+  .export-sheet {
+    padding: 18px 14px;
+  }
+
+  .export-title {
+    font-size: 21px;
+    letter-spacing: 2px;
+  }
+
+  .export-images {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .export-images img {
+    height: 120px;
+  }
 }
 
 .export-sheet {
