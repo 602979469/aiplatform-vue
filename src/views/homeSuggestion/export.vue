@@ -2,7 +2,7 @@
   <div class="app-container export-page">
     <!-- 工具栏（打印时隐藏） -->
     <div class="no-print export-toolbar">
-      <el-button icon="el-icon-back" size="mini" @click="$router.push('/home-purchase/suggestion')">返回装修意见</el-button>
+      <el-button v-if="!isAnonymous" icon="el-icon-back" size="mini" @click="$router.push('/home-purchase/suggestion')">返回装修意见</el-button>
       <el-input v-model="title" size="mini" style="width: 240px" placeholder="文档标题" />
       <el-button type="primary" icon="el-icon-printer" size="mini" @click="print">打印 / 导出 PDF</el-button>
       <span class="export-tip">在打印对话框里选「目标：另存为 PDF」即可</span>
@@ -40,6 +40,7 @@
 
 <script>
 import { listSuggestion, listSuggestionRegions, suggestionImageUrl } from '@/api/homeSuggestion'
+import { getToken } from '@/utils/auth'
 
 export default {
   name: 'HomeSuggestionExport',
@@ -53,6 +54,10 @@ export default {
     }
   },
   computed: {
+    /** 匿名访客（外部访客，无登录态）隐藏返回后台的入口，避免被带到登录页 */
+    isAnonymous() {
+      return !getToken()
+    },
     /** 按区域分组（顺序跟后端配置的区域顺序一致，只输出有意见的区域） */
     groups() {
       const groups = []

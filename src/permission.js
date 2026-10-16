@@ -17,6 +17,12 @@ const isWhiteList = (path) => {
 
 router.beforeEach((to, from, next) => {
   NProgress.start()
+  // 匿名路由（meta.anonymous）：不看登录态直接放行，外部访客也能打开
+  if (to.meta.anonymous) {
+    next()
+    NProgress.done()
+    return
+  }
   if (getToken()) {
     to.meta.title && store.dispatch('settings/setTitle', to.meta.title)
     const isLock = store.getters.isLock
