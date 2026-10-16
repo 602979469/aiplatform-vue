@@ -22,8 +22,8 @@
         <h2>{{ group.region }}<small>（{{ group.items.length }} 条）</small></h2>
         <article v-for="item in group.items" :key="item.id" class="export-item">
           <h3>{{ item.title }}</h3>
-          <!-- 采纳/驳回按钮始终显示（没登录时点了会提示去登录），避免登录态过期后按钮莫名消失 -->
-          <div class="no-print export-actions">
+          <!-- 匿名访客（外部打开链接）不给采纳/驳回按钮：这两个接口需要登录，点了只会报 401 -->
+          <div v-if="!isAnonymous" class="no-print export-actions">
             <el-button size="mini" type="success" plain icon="el-icon-check" @click="adopt(item)">已采纳</el-button>
             <el-button size="mini" type="danger" plain icon="el-icon-close" @click="reject(item)">驳回</el-button>
           </div>
@@ -109,22 +109,9 @@ export default {
         this.loading = false
       })
     },
-    /**
-     * 采纳/驳回都要登录：没登录就直接引导去登录页（带上回跳地址），
-     * 不要发注定 401 的请求，也不要因为没登录就把按钮藏起来。
-     */
-    ensureLogin() {
-      if (getToken()) {
-        return true
-      }
-      this.$modal.confirm('采纳 / 驳回需要登录后才能操作，去登录？').then(() => {
-        this.$router.push({ path: '/login', query: { redirect: this.$route.fullPath } })
-      }).catch(() => {})
-      return false
-    },
     /** 采纳：这条随即从 PDF 清单里消失（后端过滤掉已采纳） */
     adopt(item) {
-      if (this.acting || !this.ensureLogin()) {
+      if (this.acting) {
         return
       }
       this.$modal.confirm('采纳「' + item.title + '」？采纳后不再出现在这份 PDF 里。').then(() => {
@@ -139,7 +126,7 @@ export default {
     },
     /** 驳回：必须填原因，原因会打印在 PDF 上（这项仍保留在清单里） */
     reject(item) {
-      if (this.acting || !this.ensureLogin()) {
+      if (this.acting) {
         return
       }
       this.$prompt('填写驳回原因（会打印在 PDF 上）', '驳回：' + item.title, {
