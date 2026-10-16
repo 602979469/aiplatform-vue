@@ -82,6 +82,13 @@ export const constantRoutes = [
     name: 'AppPurchase',
     hidden: true
   },
+  // 装修意见 PDF 导出页（独立全屏，打印友好；从装修意见列表点「一键导出 PDF」进入）
+  {
+    path: '/home-suggestion/export',
+    component: () => import('@/views/homeSuggestion/export'),
+    name: 'HomeSuggestionExport',
+    hidden: true
+  },
   {
     path: '',
     component: Layout,
