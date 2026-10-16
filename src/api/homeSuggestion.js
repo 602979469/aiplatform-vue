@@ -70,6 +70,25 @@ export function delSuggestion(id) {
   })
 }
 
+// 采纳意见（采纳后导出 PDF 不再展示这条）
+export function adoptSuggestion(id) {
+  return request({
+    url: '/api/v1/homeSuggestions/' + id + '/adopt',
+    method: 'put',
+    timeout: 15000
+  })
+}
+
+// 驳回意见（必须带驳回原因，会覆盖上一次的原因）
+export function rejectSuggestion(id, reason) {
+  return request({
+    url: '/api/v1/homeSuggestions/' + id + '/reject',
+    method: 'put',
+    data: { reason: reason },
+    timeout: 15000
+  })
+}
+
 /** 图片上传地址（el-upload 内置上传用，namespace=aiplatform） */
 export const suggestionImageUploadUrl = process.env.VUE_APP_BASE_API + '/api/file/upload'
 

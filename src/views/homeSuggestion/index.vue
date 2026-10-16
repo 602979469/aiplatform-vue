@@ -8,6 +8,11 @@
             <el-option v-for="region in regions" :key="region" :label="region" :value="region" />
           </el-select>
         </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 130px" @change="handleQuery">
+            <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="标题">
           <el-input v-model="query.title" placeholder="意见标题" clearable style="width: 190px" @keyup.enter.native="handleQuery" />
         </el-form-item>
@@ -39,21 +44,36 @@
           @click="pickRegion(region)"
         >{{ region }}</span>
       </div>
-      <el-input
-        v-model="query.title"
-        size="small"
-        clearable
-        prefix-icon="el-icon-search"
-        placeholder="搜意见标题"
-        @keyup.enter.native="handleQuery"
-        @clear="handleQuery"
-      />
+      <div class="suggestion-mobile-search">
+        <el-input
+          v-model="query.title"
+          size="small"
+          clearable
+          prefix-icon="el-icon-search"
+          placeholder="搜意见标题"
+          @keyup.enter.native="handleQuery"
+          @clear="handleQuery"
+        />
+        <el-select v-model="query.status" size="small" clearable placeholder="状态" @change="handleQuery">
+          <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
+        </el-select>
+      </div>
     </div>
 
     <!-- 电脑端：表格 -->
     <el-table v-if="!isMobile" v-loading="loading" :data="list" border size="small">
       <el-table-column prop="region" label="区域" width="110" align="center">
         <template slot-scope="scope"><el-tag size="mini">{{ scope.row.region }}</el-tag></template>
+      </el-table-column>
+      <el-table-column label="状态" width="110" align="center">
+        <template slot-scope="scope">
+          <el-tag size="mini" :type="statusTagType(scope.row.status)">{{ statusText(scope.row) }}</el-tag>
+          <div v-if="scope.row.rejectReason" class="suggestion-reason">
+            <el-tooltip :content="scope.row.rejectReason" placement="top">
+              <span>驳回原因</span>
+            </el-tooltip>
+          </div>
+        </template>
       </el-table-column>
       <el-table-column prop="title" label="意见标题" min-width="180" show-overflow-tooltip />
       <el-table-column prop="content" label="意见内容" min-width="260" show-overflow-tooltip />
@@ -72,8 +92,10 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="130" align="center">
+      <el-table-column label="操作" width="215" align="center">
         <template slot-scope="scope">
+          <el-button type="text" size="mini" icon="el-icon-check" @click="handleAdopt(scope.row)">采纳</el-button>
+          <el-button type="text" size="mini" icon="el-icon-close" @click="handleReject(scope.row)">驳回</el-button>
           <el-button type="text" size="mini" icon="el-icon-edit" @click="openEdit(scope.row)">修改</el-button>
           <el-button type="text" size="mini" icon="el-icon-delete" @click="handleDelete(scope.row)">删除</el-button>
         </template>
@@ -86,8 +108,10 @@
         <div class="suggestion-card__head">
           <el-tag size="mini">{{ row.region }}</el-tag>
           <span class="suggestion-card__title">{{ row.title }}</span>
+          <el-tag size="mini" class="suggestion-card__status" :type="statusTagType(row.status)">{{ statusText(row) }}</el-tag>
         </div>
         <div v-if="row.content" class="suggestion-card__content">{{ row.content }}</div>
+        <div v-if="row.rejectReason" class="suggestion-card__reject">驳回原因：{{ row.rejectReason }}</div>
         <div v-if="row.images && row.images.length" class="suggestion-card__thumbs">
           <img
             v-for="(img, index) in row.images.slice(0, 4)"
@@ -98,6 +122,10 @@
             @click.stop="openViewer(row.images, index)"
           >
           <span v-if="row.images.length > 4">+{{ row.images.length - 4 }}</span>
+        </div>
+        <div class="suggestion-card__ops" @click.stop>
+          <button type="button" class="suggestion-card__op" @click="handleAdopt(row)">✓ 采纳</button>
+          <button type="button" class="suggestion-card__op" @click="handleReject(row)">✕ 驳回</button>
         </div>
       </div>
     </div>
@@ -127,6 +155,9 @@
       append-to-body
     >
       <el-form label-width="86px" size="small">
+        <el-form-item v-if="formRejectReason" label="驳回原因">
+          <div class="suggestion-reject-text">{{ formRejectReason }}</div>
+        </el-form-item>
         <el-form-item label="区域" required>
           <el-select v-model="form.region" placeholder="请选择区域" style="width: 100%">
             <el-option v-for="region in regions" :key="region" :label="region" :value="region" />
@@ -217,6 +248,8 @@ import {
   updateSuggestion,
   delSuggestion,
   parseSuggestion,
+  adoptSuggestion,
+  rejectSuggestion,
   suggestionImageUrl,
   suggestionImageUploadUrl
 } from '@/api/homeSuggestion'
@@ -231,10 +264,16 @@ export default {
       regions: [],
       list: [],
       total: 0,
-      query: { region: undefined, title: undefined, pageNum: 1, pageSize: 10 },
+      query: { region: undefined, title: undefined, status: undefined, pageNum: 1, pageSize: 10 },
+      statusOptions: [
+        { value: 'PENDING', label: '待处理' },
+        { value: 'ADOPTED', label: '已采纳' },
+        { value: 'REJECTED', label: '已驳回' }
+      ],
       formVisible: false,
       fileList: [],
       form: this.emptyForm(),
+      formRejectReason: '',
       viewerVisible: false,
       viewerImages: [],
       viewerIndex: 0,
@@ -288,10 +327,57 @@ export default {
       this.handleQuery()
     },
     resetQuery() {
-      this.query = { region: undefined, title: undefined, pageNum: 1, pageSize: 10 }
+      this.query = { region: undefined, title: undefined, status: undefined, pageNum: 1, pageSize: 10 }
       this.getList()
     },
+    /** 状态文案：后端返回 statusName 时直接用它，兜底查本地映射 */
+    statusText(row) {
+      if (row.statusName) {
+        return row.statusName
+      }
+      const hit = this.statusOptions.find(item => item.value === row.status)
+      return hit ? hit.label : '待处理'
+    },
+    statusTagType(status) {
+      if (status === 'ADOPTED') {
+        return 'success'
+      }
+      if (status === 'REJECTED') {
+        return 'danger'
+      }
+      return 'info'
+    },
+    /** 采纳：采纳后导出 PDF 不再展示这条 */
+    handleAdopt(row) {
+      if (row.status === 'ADOPTED') {
+        this.$modal.msgWarning('这条已经是「已采纳」了')
+        return
+      }
+      this.$modal.confirm('采纳「' + row.title + '」？采纳后导出 PDF 不再显示这条。').then(() => {
+        return adoptSuggestion(row.id)
+      }).then(() => {
+        this.$modal.msgSuccess('已采纳')
+        this.getList()
+      }).catch(() => {})
+    },
+    /** 驳回：必须填原因，重复驳回会覆盖旧原因 */
+    handleReject(row) {
+      this.$prompt('填写驳回原因（会打印在导出的 PDF 上）', '驳回：' + row.title, {
+        confirmButtonText: '确定驳回',
+        cancelButtonText: '取消',
+        inputType: 'textarea',
+        inputValue: row.rejectReason || '',
+        inputPlaceholder: '例如：按标准做法即可，不做定制',
+        inputValidator: value => ((value && value.trim()) ? true : '驳回要写个原因')
+      }).then(result => {
+        return rejectSuggestion(row.id, result.value.trim())
+      }).then(() => {
+        this.$modal.msgSuccess('已驳回')
+        this.getList()
+      }).catch(() => {})
+    },
     openEdit(row) {
+      this.formRejectReason = row.rejectReason || ''
       this.form = {
         id: row.id,
         region: row.region,
@@ -363,6 +449,7 @@ export default {
           return
         }
         this.aiVisible = false
+        this.formRejectReason = ''
         this.form = {
           id: undefined,
           region: draft.region,
@@ -481,6 +568,33 @@ export default {
   display: none;
 }
 
+.suggestion-mobile-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.suggestion-mobile-search .el-select {
+  flex: 0 0 92px;
+  width: 92px;
+}
+
+.suggestion-reason {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #f56c6c;
+  cursor: help;
+}
+
+.suggestion-reject-text {
+  font-size: 13px;
+  color: #f56c6c;
+  line-height: 1.7;
+  background: #fdf0ef;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
 .suggestion-chip {
   flex: 0 0 auto;
   padding: 5px 12px;
@@ -566,6 +680,45 @@ export default {
 .suggestion-card__thumbs img {
   width: 64px;
   height: 64px;
+}
+
+.suggestion-card__status {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.suggestion-card__reject {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #f56c6c;
+}
+
+.suggestion-card__ops {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #f2f3f5;
+}
+
+.suggestion-card__op {
+  flex: 1;
+  height: 32px;
+  border: 1px solid #dcdfe6;
+  border-radius: 16px;
+  background: #fff;
+  color: #606266;
+  font-size: 13px;
+}
+
+.suggestion-card__op:first-child {
+  border-color: #b3e19d;
+  color: #67c23a;
+}
+
+.suggestion-card__op:last-child {
+  border-color: #fbc4c4;
+  color: #f56c6c;
 }
 
 .suggestion-viewer {
