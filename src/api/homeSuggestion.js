@@ -41,6 +41,16 @@ export function addSuggestion(data) {
   })
 }
 
+// 一句话录入：把一段话识别成 区域 + 标题 + 内容（草稿，用户确认后再调新增）
+export function parseSuggestion(data) {
+  return request({
+    url: '/api/v1/homeSuggestions/parse',
+    method: 'post',
+    data: data,
+    timeout: 90000
+  })
+}
+
 // 修改意见（全量，图片整体替换）
 export function updateSuggestion(id, data) {
   return request({

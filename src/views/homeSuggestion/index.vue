@@ -21,6 +21,9 @@
         <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="openAdd">新增意见</el-button>
       </el-col>
       <el-col :span="1.5">
+        <el-button type="success" plain icon="el-icon-magic-stick" size="mini" @click="openAi">AI 识别</el-button>
+      </el-col>
+      <el-col :span="1.5">
         <el-button type="warning" plain icon="el-icon-printer" size="mini" @click="goExport">一键导出 PDF</el-button>
       </el-col>
     </el-row>
@@ -133,6 +136,28 @@
       </div>
     </el-dialog>
 
+    <!-- AI 一句话识别 -->
+    <el-dialog title="AI 识别装修意见" :visible.sync="aiVisible" :width="isMobile ? '94%' : '560px'" append-to-body>
+      <div class="ai-tip">
+        随口说一句就行，例如：<b>厨房台面想做 85cm，不然洗碗一直弯腰</b>；AI 会自动判断区域、拟好标题和内容，
+        确认后帮你创建（图片之后再补）。
+      </div>
+      <el-input
+        v-model="aiText"
+        type="textarea"
+        :rows="4"
+        maxlength="500"
+        placeholder="例：主卧床头插座被床头柜挡住了，想上移到 75cm，最好带两个 USB"
+      />
+      <div v-if="aiError" class="ai-error">{{ aiError }}</div>
+      <div slot="footer">
+        <el-button size="small" @click="aiVisible = false">取消</el-button>
+        <el-button type="primary" size="small" :loading="aiLoading" @click="submitAi">
+          {{ aiLoading ? '识别中…' : '识别' }}
+        </el-button>
+      </div>
+    </el-dialog>
+
     <!-- 图片放大 -->
     <div v-if="viewerVisible" class="suggestion-viewer" @click="viewerVisible = false">
       <div class="suggestion-viewer__bar">
@@ -157,6 +182,7 @@ import {
   addSuggestion,
   updateSuggestion,
   delSuggestion,
+  parseSuggestion,
   suggestionImageUrl,
   suggestionImageUploadUrl
 } from '@/api/homeSuggestion'
@@ -177,7 +203,11 @@ export default {
       form: this.emptyForm(),
       viewerVisible: false,
       viewerImages: [],
-      viewerIndex: 0
+      viewerIndex: 0,
+      aiVisible: false,
+      aiText: '',
+      aiLoading: false,
+      aiError: ''
     }
   },
   computed: {
@@ -268,6 +298,47 @@ export default {
     },
     goExport() {
       this.$router.push({ path: '/home-suggestion/export' })
+    },
+    /** 打开 AI 一句话识别 */
+    openAi() {
+      this.aiText = ''
+      this.aiError = ''
+      this.aiVisible = true
+    },
+    /**
+     * 识别 → 把结果预填到新增表单，用户确认后点「保存」才真正落库
+     * （图片之后再补，所以这里只填区域/标题/内容）
+     */
+    submitAi() {
+      const text = (this.aiText || '').trim()
+      if (!text) {
+        this.$modal.msgWarning('先说一句装修意见')
+        return
+      }
+      this.aiLoading = true
+      this.aiError = ''
+      parseSuggestion({ text: text }).then(res => {
+        const draft = res.data || null
+        if (!draft) {
+          this.aiError = '没听清，换个说法试试'
+          return
+        }
+        this.aiVisible = false
+        this.form = {
+          id: undefined,
+          region: draft.region,
+          title: draft.title,
+          content: draft.content,
+          fileIds: []
+        }
+        this.fileList = []
+        this.formVisible = true
+        this.$modal.msgSuccess('AI 已识别，确认无误点「保存」即可创建')
+      }).catch(error => {
+        this.aiError = (error && error.message) || '没听清，换个说法试试'
+      }).finally(() => {
+        this.aiLoading = false
+      })
     },
     beforeUpload(file) {
       if (!/image\/(jpeg|jpg|png|gif|webp)/.test(file.type)) {
@@ -439,5 +510,24 @@ export default {
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
   font-size: 24px;
+}
+
+.ai-tip {
+  font-size: 13px;
+  color: #606266;
+  line-height: 1.8;
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.ai-error {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fdf0ef;
+  color: #d9534f;
+  font-size: 13px;
 }
 </style>
