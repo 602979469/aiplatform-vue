@@ -12,7 +12,7 @@
       <h1 class="export-title">{{ title }}</h1>
       <div class="export-meta">
         <span>导出时间：{{ exportedAt }}</span>
-        <span>未采纳 {{ itemCount }} 条</span>
+        <span>共 {{ itemCount }} 条意见</span>
         <span>{{ imageCount }} 张图</span>
       </div>
 
@@ -22,12 +22,6 @@
         <h2>{{ group.region }}<small>（{{ group.items.length }} 条）</small></h2>
         <article v-for="item in group.items" :key="item.id" class="export-item">
           <h3>{{ item.title }}</h3>
-          <!-- 匿名访客（外部打开链接）不给采纳/驳回按钮：这两个接口需要登录，点了只会报 401 -->
-          <div v-if="!isAnonymous" class="no-print export-actions">
-            <el-button size="mini" type="success" plain icon="el-icon-check" @click="adopt(item)">已采纳</el-button>
-            <el-button size="mini" type="danger" plain icon="el-icon-close" @click="reject(item)">驳回</el-button>
-          </div>
-          <div v-if="item.status === 'REJECTED' && item.rejectReason" class="export-reject">驳回原因：{{ item.rejectReason }}</div>
           <div v-if="item.content" class="export-content">{{ item.content }}</div>
           <div v-if="item.images && item.images.length" class="export-images">
             <img
@@ -45,7 +39,7 @@
 </template>
 
 <script>
-import { listSuggestion, listSuggestionRegions, adoptSuggestion, rejectSuggestion, suggestionImageUrl } from '@/api/homeSuggestion'
+import { listSuggestion, listSuggestionRegions, suggestionImageUrl } from '@/api/homeSuggestion'
 import { getToken } from '@/utils/auth'
 
 export default {
@@ -56,8 +50,7 @@ export default {
       title: '白金海岸装修意见',
       exportedAt: '',
       regions: [],
-      items: [],
-      acting: false
+      items: []
     }
   },
   computed: {
@@ -99,51 +92,13 @@ export default {
     load() {
       this.loading = true
       Promise.all([
-        // 已采纳的不进 PDF：这里直接排除已采纳，页面上也就只剩未采纳的
-        listSuggestion({ excludeStatus: 'ADOPTED' }),
+        listSuggestion({}),
         listSuggestionRegions().catch(() => ({ data: [] }))
       ]).then(([listRes, regionRes]) => {
         this.items = listRes.data || []
         this.regions = regionRes.data || []
       }).finally(() => {
         this.loading = false
-      })
-    },
-    /** 采纳：这条随即从 PDF 清单里消失（后端过滤掉已采纳） */
-    adopt(item) {
-      if (this.acting) {
-        return
-      }
-      this.$modal.confirm('采纳「' + item.title + '」？采纳后不再出现在这份 PDF 里。').then(() => {
-        this.acting = true
-        return adoptSuggestion(item.id)
-      }).then(() => {
-        this.$modal.msgSuccess('已采纳，已从清单移除')
-        this.load()
-      }).catch(() => {}).finally(() => {
-        this.acting = false
-      })
-    },
-    /** 驳回：必须填原因，原因会打印在 PDF 上（这项仍保留在清单里） */
-    reject(item) {
-      if (this.acting) {
-        return
-      }
-      this.$prompt('填写驳回原因（会打印在 PDF 上）', '驳回：' + item.title, {
-        confirmButtonText: '确定驳回',
-        cancelButtonText: '取消',
-        inputType: 'textarea',
-        inputValue: item.rejectReason || '',
-        inputPlaceholder: '例如：费用太高，改用普通做法',
-        inputValidator: value => ((value && value.trim()) ? true : '驳回要写个原因')
-      }).then(result => {
-        this.acting = true
-        return rejectSuggestion(item.id, result.value.trim())
-      }).then(() => {
-        this.$modal.msgSuccess('已驳回')
-        this.load()
-      }).catch(() => {}).finally(() => {
-        this.acting = false
       })
     },
     print() {
@@ -252,20 +207,6 @@ export default {
   font-size: 15px;
   margin: 0 0 6px;
   color: #2b2b2b;
-}
-
-/* 采纳 / 驳回：只在屏幕上出现，打印时被 .no-print 隐藏 */
-.export-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin: -2px 0 8px;
-}
-
-.export-reject {
-  font-size: 12px;
-  color: #f56c6c;
-  margin-bottom: 6px;
 }
 
 .export-content {
