@@ -402,6 +402,7 @@
 <script>
 import { getToken } from '@/utils/auth'
 import responsive from '@/mixins/responsive'
+import { compressImage } from '@/utils/imageCompress'
 import {
   listFurnitureTypes,
   pagePurchaseItem,
@@ -674,7 +675,8 @@ export default {
         this.$modal.msgError('图片不要超过 10MB')
         return false
       }
-      return true
+      // 上传前先在本地压缩：公网走 frp 隧道带宽有限，手机原图动辄 5-8MB
+      return compressImage(file, { maxEdge: 2560, quality: 0.85 })
     },
     handleUploadSuccess(response, file) {
       if (!response || !response.success) {
